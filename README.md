@@ -10,11 +10,23 @@
 
 ## What is it?
 
-**pyethnicity** is
+**pyethnicity** is a Python package to predict race from name and location. To the best of the author's knowledge, it outperforms all existing open-source models. It does this by training a Bidirectional LSTM on the largest, most comprehensive dataset thus far. It uses voter registration data from all 50 states. Additionally, it incorporates location features and improved versions of Bayesian Improved Surname Geocoding and Bayesian Improved Firstname Surname Geocoding to form an ensemble model that achieves up to 36.8% higher F1 scores than the next-best performing model.
+
+**pyethnicity**
+
+![](assets/ensemble_stats.png)
+
+**rethnicity**
+
+![](assets/reth_stats.png)
+
+**ethnicolr**
+
+![](assets/eth_stats.png)
+
+Please see the correpsonding paper ["Can We Trust Race Prediction?"](https://arxiv.org/abs/2307.08496) for more details.
 
 # Usage:
-
-## Dependencies
 
 ## Installing
 
@@ -26,10 +38,18 @@ pip install pyethnicity
 
 ## Running
 
-First, import the library.
+Pyethnicity exposes several functions. Currently, it only support ZCTA-level features, although tract, county, and state-level features are planned. Each function takes in a scalar or array-like of inputs and returns a pandas DataFrame of the input and the predictions.
 
 ```python
 import pyethnicity
+
+pyethnicity.BayesianModel().bisg(last_name, zcta)
+pyethnicity.BayesianModel().bifsg(first_name, last_name, zcta)
+pyethnicity.predict_race_fl(first_name, last_name)
+pyethnicity.predict_race_flg(first_name, last_name, zcta)
+pyethnicity.predict_race_ensemble(first_name, last_name, zcta)
 ```
 
 # TODO:
+
+This package is still in active development. Please report any issues!
