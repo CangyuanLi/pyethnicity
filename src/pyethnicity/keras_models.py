@@ -73,12 +73,13 @@ def predict_race_fl(
 ) -> pd.DataFrame:
     _assert_equal_lengths(first_name, last_name)
 
-    first_name = _normalize_name(first_name)
-    last_name = _normalize_name(last_name)
+    first_name_cleaned = _normalize_name(first_name)
+    last_name_cleaned = _normalize_name(last_name)
 
     if backend == "bilstm":
         X = [
-            _encode_name(fn) + _encode_name(ln) for fn, ln in zip(first_name, last_name)
+            _encode_name(fn) + _encode_name(ln)
+            for fn, ln in zip(first_name_cleaned, last_name_cleaned)
         ]
         X = tf.keras.utils.pad_sequences(X, maxlen=30)
 
@@ -93,11 +94,11 @@ def predict_race_fl(
         for idx, p in enumerate(row):
             preds[RACE_MAPPER[idx]].append(p)
 
-    res = pd.DataFrame(preds)
-    res["first_name"] = first_name
-    res["last_name"] = last_name
+    df = pd.DataFrame({"first_name": first_name, "last_name": last_name})
+    for r, v in preds:
+        df[r] = v
 
-    return res
+    return df
 
 
 def predict_race_flg(
