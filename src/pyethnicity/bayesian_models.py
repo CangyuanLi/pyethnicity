@@ -88,10 +88,10 @@ class BayesianModel:
     ) -> pd.DataFrame:
         _assert_equal_lengths(last_name, zcta)
 
-        last_name = self._normalize_name(last_name, "last_name")
-        zcta = self._normalize_zcta(zcta, "zcta5")
+        last_name_cleaned = self._normalize_name(last_name, "last_name")
+        zcta_cleaned = self._normalize_zcta(zcta, "zcta5")
 
-        df = pl.concat([last_name, zcta], how="horizontal")
+        df = pl.concat([last_name_cleaned, zcta_cleaned], how="horizontal")
 
         prob_race_given_last_name = df.join(
             self._PROB_RACE_GIVEN_LAST_NAME,
@@ -108,7 +108,11 @@ class BayesianModel:
         bisg_denom = bisg_numer.sum(axis=1)
         bisg_probs = bisg_numer / bisg_denom
 
-        return pl.concat([df, bisg_probs], how="horizontal").to_pandas()
+        df = pd.DataFrame()
+        df["last_name"] = last_name
+        df["zcta"] = zcta
+
+        return pd.concat([df, bisg_probs.to_pandas()], axis=1)
 
     def bifsg(
         self,
@@ -118,11 +122,13 @@ class BayesianModel:
     ) -> pd.DataFrame:
         _assert_equal_lengths(first_name, last_name, zcta)
 
-        first_name = self._normalize_name(first_name, "first_name")
-        last_name = self._normalize_name(last_name, "last_name")
-        zcta = self._normalize_zcta(zcta, "zcta5")
+        first_name_cleaned = self._normalize_name(first_name, "first_name")
+        last_name_cleaned = self._normalize_name(last_name, "last_name")
+        zcta_cleaned = self._normalize_zcta(zcta, "zcta5")
 
-        df = pl.concat([first_name, last_name, zcta], how="horizontal")
+        df = pl.concat(
+            [first_name_cleaned, last_name_cleaned, zcta_cleaned], how="horizontal"
+        )
 
         prob_first_name_given_race = df.join(
             self._PROB_FIRST_NAME_GIVEN_RACE,
@@ -150,4 +156,9 @@ class BayesianModel:
         bifsg_denom = bifsg_numer.sum(axis=1)
         bifsg_probs = bifsg_numer / bifsg_denom
 
-        return pl.concat([df, bifsg_probs], how="horizontal").to_pandas()
+        df = pd.DataFrame()
+        df["first_name"] = first_name
+        df["last_name"] = last_name
+        df["zcta"] = zcta
+
+        return pd.concat([df, bifsg_probs.to_pandas()], axis=1)

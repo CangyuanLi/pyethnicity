@@ -94,8 +94,11 @@ def predict_race_fl(
         for idx, p in enumerate(row):
             preds[RACE_MAPPER[idx]].append(p)
 
-    df = pd.DataFrame({"first_name": first_name, "last_name": last_name})
-    for r, v in preds:
+    df = pd.DataFrame()
+    df["first_name"] = first_name
+    df["last_name"] = last_name
+
+    for r, v in preds.items():
         df[r] = v
 
     return df
