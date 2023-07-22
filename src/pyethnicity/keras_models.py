@@ -13,7 +13,7 @@ import tensorflow as tf
 from bayesian_models import BayesianModel
 from utils.paths import MODEL_PATH
 from utils.types import ArrayLike, Model
-from utils.utils import _assert_equal_lengths, _remove_single_chars
+from utils.utils import _assert_equal_lengths, _is_null, _remove_single_chars, _std_norm
 
 
 class ModelLoader:
@@ -107,3 +107,42 @@ def predict_race_flg(
     fl_preds = predict_race_fl(first_name, last_name, backend)
 
     return BAYESIAN_MODEL._bng(pl.from_pandas(fl_preds), zcta)
+
+
+def predict_race_ensemble(
+    first_name: str | ArrayLike,
+    last_name: str | ArrayLike,
+    zcta: int | str | ArrayLike,
+    backend: Model = "bilstm",
+) -> pd.DataFrame:
+    flz = predict_race_flg(first_name, last_name, zcta, backend)
+    bifsg = BAYESIAN_MODEL.bifsg(first_name, last_name, zcta)
+    bisg = BAYESIAN_MODEL.bisg(last_name, zcta)
+
+    weights = [1, 1, 1]
+
+    res = {r: [] for r in RACES}
+    for race in RACES:
+        for row in zip(
+            flz[race].to_list(), bifsg[race].to_list(), bisg[race].to_list()
+        ):
+            valid_inputs = []
+            valid_weights = []
+            for r, w in zip(row, weights):
+                if not _is_null(r):
+                    valid_inputs.append(r)
+                    valid_weights.append(w)
+
+            valid_weights = _std_norm(valid_weights)
+
+            res[race].append(sum(i * w for i, w in zip(valid_inputs, valid_weights)))
+
+    df = pd.DataFrame()
+    df["first_name"] = first_name
+    df["last_name"] = last_name
+    df["zcta"] = zcta
+
+    for r, v in res.items():
+        df[r] = v
+
+    return df
