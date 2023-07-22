@@ -25,7 +25,9 @@ class ModelLoader:
 
     def load(self, model: Model):
         if self._models[model] is None:
-            self._models[model] = keras.models.load_model(MODEL_PATH / f"{model}.h5")
+            self._models[model] = keras.models.load_model(
+                MODEL_PATH / f"{model}.h5", compile=False
+            )
 
         return self._models[model]
 
