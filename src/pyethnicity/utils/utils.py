@@ -1,4 +1,5 @@
 import functools
+import math
 
 from utils.types import ArrayLike
 
@@ -21,3 +22,13 @@ def _assert_equal_lengths(*inputs: object | ArrayLike):
 @functools.lru_cache()
 def _remove_single_chars(name: str) -> str:
     return " ".join(part for part in name.split(" ") if len(part) > 1)
+
+
+def _std_norm(values: list[float]) -> list[float]:
+    total = sum(values)
+
+    return [v / total for v in values]
+
+
+def _is_null(x: object):
+    return math.isnan(x) or x is None
