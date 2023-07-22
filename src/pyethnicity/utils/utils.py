@@ -1,7 +1,7 @@
 import functools
 import math
 
-from utils.types import ArrayLike
+from .types import ArrayLike
 
 
 def _assert_equal_lengths(*inputs: object | ArrayLike):

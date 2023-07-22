@@ -10,10 +10,16 @@ import keras
 import pandas as pd
 import polars as pl
 import tensorflow as tf
-from bayesian_models import BayesianModel
-from utils.paths import MODEL_PATH
-from utils.types import ArrayLike, Model
-from utils.utils import _assert_equal_lengths, _is_null, _remove_single_chars, _std_norm
+
+from .bayesian_models import BayesianModel
+from .utils.paths import MODEL_PATH
+from .utils.types import ArrayLike, Model
+from .utils.utils import (
+    _assert_equal_lengths,
+    _is_null,
+    _remove_single_chars,
+    _std_norm,
+)
 
 
 class ModelLoader:

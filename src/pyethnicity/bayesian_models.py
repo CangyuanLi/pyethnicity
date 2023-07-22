@@ -2,9 +2,10 @@ import string
 
 import pandas as pd
 import polars as pl
-from utils.paths import DIST_PATH
-from utils.types import ArrayLike
-from utils.utils import _assert_equal_lengths, _remove_single_chars
+
+from .utils.paths import DIST_PATH
+from .utils.types import ArrayLike
+from .utils.utils import _assert_equal_lengths, _remove_single_chars
 
 
 class BayesianModel:
