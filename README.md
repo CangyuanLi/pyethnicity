@@ -24,7 +24,7 @@
 
 ![](assets/eth_stats.png)
 
-Please see the correpsonding paper ["Can We Trust Race Prediction?"](https://arxiv.org/abs/2307.08496) for more details.
+Please see the correpsonding paper ["Can We Trust Race Prediction?"](paper.pdf) for more details.
 
 # Usage:
 
