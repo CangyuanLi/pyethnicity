@@ -3,6 +3,8 @@ import math
 
 from .types import ArrayLike
 
+RACES = ("asian", "black", "hispanic", "white")
+
 
 def _assert_equal_lengths(*inputs: object | ArrayLike):
     lengths = []
