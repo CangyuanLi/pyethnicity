@@ -6,7 +6,9 @@ from typing import Literal, Union
 import numpy as np
 import pandas as pd
 import polars as pl
-import pyarrow
 
-ArrayLike = Union[Sequence, pd.Series, pl.Series, np.ndarray, pyarrow.Array]
-Model = Literal["bilstm", "dual_bilstm"]
+ArrayLike = Union[Sequence, pd.Series, pl.Series, np.ndarray]
+Name = Union[str, ArrayLike]
+Geography = Union[int, str, ArrayLike]
+GeoType = Literal["zcta", "tract"]
+Model = Literal["first_last"]
