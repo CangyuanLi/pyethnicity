@@ -14,17 +14,19 @@
 
 **pyethnicity**
 
-![](assets/ensemble_stats.png)
+![](https://github.com/CangyuanLi/pyethnicity/raw/master/assets/ensemble_stats.png)
+
+
 
 **rethnicity**
 
-![](assets/reth_stats.png)
+![](https://github.com/CangyuanLi/pyethnicity/raw/master/assets/reth_stats.png)
 
 **ethnicolr**
 
-![](assets/eth_stats.png)
+![](https://github.com/CangyuanLi/pyethnicity/raw/master/assets/eth_stats.png)
 
-Please see the correpsonding paper ["Can We Trust Race Prediction?"](paper.pdf) for more details.
+Please see the correpsonding paper ["Can We Trust Race Prediction?"](https://github.com/CangyuanLi/pyethnicity/blob/master/paper.pdf) for more details.
 
 # Usage:
 
