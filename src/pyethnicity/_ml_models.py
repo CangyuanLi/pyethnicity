@@ -165,7 +165,7 @@ def predict_race_fl(
     for input_ in tqdm.tqdm(cutils.chunk_seq(X, chunksize)):
         y_pred.extend(model.run(None, input_feed={input_name: input_})[0])
 
-    preds = {r: [] for r in RACES}
+    preds: dict[str, list] = {r: [] for r in RACES}
     for row in y_pred:
         for idx, p in enumerate(row):
             preds[RACE_MAPPER[idx]].append(p)
@@ -204,7 +204,7 @@ def predict_race(
 
     weights = [1, 1, 1]
 
-    res = {r: [] for r in RACES}
+    res: dict[str, list] = {r: [] for r in RACES}
     for race in RACES:
         for row in zip(
             flz[race].to_list(), bifsg_[race].to_list(), bisg_[race].to_list()

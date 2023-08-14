@@ -36,7 +36,10 @@ class ResourceLoader:
                 DIST_PATH / f"{resource}.parquet"
             )
 
-        return self._resources[resource]
+        data = self._resources[resource]
+        assert data is not None
+
+        return data
 
 
 RESOURCE_LOADER = ResourceLoader()
