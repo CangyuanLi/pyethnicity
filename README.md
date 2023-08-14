@@ -38,16 +38,21 @@ pip install pyethnicity
 
 ## Running
 
-Pyethnicity exposes several functions. Currently, it only support ZCTA-level features, although tract, county, and state-level features are planned. Each function takes in a scalar or array-like of inputs and returns a pandas DataFrame of the input and the predictions.
+Pyethnicity exposes several functions. Currently, it only support only tract and ZCTA-level features, although county and state-level features are planned. Each function takes in a scalar or array-like of inputs and returns a pandas DataFrame of the input and the predictions. Note that pyethnicity expects the census tract to be in the format of 2-digit state FIPS, 3-digit county FIPS, and 6-digit tract.
 
 ```python
 import pyethnicity
 
-pyethnicity.BayesianModel().bisg(last_name, zcta)
-pyethnicity.BayesianModel().bifsg(first_name, last_name, zcta)
+zcta = 27106
+tract = 72153750502
+first_name = "cangyuan"
+last_name = "luo"
+
+pyethnicity.bisg(last_name, zcta, geo_type="zcta")
+pyethnicity.bifsg(first_name, last_name, tract, geo_type="tract")
 pyethnicity.predict_race_fl(first_name, last_name)
-pyethnicity.predict_race_flg(first_name, last_name, zcta)
-pyethnicity.predict_race_ensemble(first_name, last_name, zcta)
+pyethnicity.predict_race_flg(first_name, last_name, tract, geo_type="tract")
+pyethnicity.predict_race(first_name, last_name, zcta, geo_type="zcta")
 ```
 
 # TODO:
