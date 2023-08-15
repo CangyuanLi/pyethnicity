@@ -146,6 +146,36 @@ def _pad_sequences(
 def predict_race_fl(
     first_name: Name, last_name: Name, chunksize: int = CHUNKSIZE
 ) -> pd.DataFrame:
+    """Predict race from first and last name.
+
+    Parameters
+    ----------
+    first_name : Name
+        A string or array-like of strings
+    last_name : Name
+        A string or array-like of strings
+    chunksize : int, optional
+        How many rows are passed to the ONNX session at a time, by default 1028
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame of first_name, last_name, and `P(r|f,s)` for Asian, Black,
+        Hispanic, and White.
+
+    Notes
+    -----
+    The data files can be found in:
+        - data/models/first_last.onnx
+
+    Examples
+    --------
+    >>> import pyethnicity
+    >>> pyethnicity.predict_race_fl(first_name="cangyuan", last_name="li")
+    >>> pyethnicity.predict_race_fl(
+            first_name=["cangyuan", "mark"], last_name=["li", "luo"]
+        )
+    """
     _assert_equal_lengths(first_name, last_name)
 
     first_name_cleaned = _normalize_name(first_name)
@@ -186,6 +216,52 @@ def predict_race_flg(
     geo_type: GeoType,
     chunksize: int = CHUNKSIZE,
 ) -> pd.DataFrame:
+    """Predict race from first name, last name, and geography. The output from
+    pyethnicity.predict_race_fl is combined with geography using Naive Bayes:
+
+    `P(r|n,g) = [P(r|n) × P(g|r)] / [∑ P(r|n) × P(g|r)]`
+
+    where `r` is race, `n` is name, and `g` is geography. The sum is across all races,
+    i.e. Asian, Black, Hispanic, and White.
+
+    Parameters
+    ----------
+    first_name : Name
+        A string or array-like of strings
+    last_name : Name
+        A string or array-like of strings
+    geography : Geography
+        A scalar or array-like of geographies
+    geo_type : GeoType
+         One of `zcta` or `tract`
+    chunksize : int, optional
+        How many rows are passed to the ONNX session at a time, by default 1028
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame of first_name, last_name, geography, and `P(r|n,g)` for Asian,
+        Black, Hispanic, and White.
+
+    Notes
+    -----
+    The data files can be found in:
+        - data/models/first_last.onnx
+        - data/distributions/prob_race_given_last_name.parquet
+        - data/distributions/prob_zcta_given_race_2010.parquet
+        - data/distributions/prob_tract_given_race_2010.parquet
+
+    Examples
+    --------
+    >>> import pyethnicity
+    >>> pyethnicity.predict_race_flg(
+            first_name="cangyuan", last_name="li", geography=11106, geo_type="zcta"
+        )
+    >>> pyethnicity.predict_race_flg(
+            first_name=["cangyuan", "mark"], last_name=["li", "luo"],
+            geography=[11106, 27106], geo_type="zcta"
+        )
+    """
     fl_preds = predict_race_fl(first_name, last_name, chunksize)
 
     return _bng(pl.from_pandas(fl_preds), geography, geo_type)
@@ -198,6 +274,48 @@ def predict_race(
     geo_type: GeoType,
     chunksize: int = CHUNKSIZE,
 ) -> pd.DataFrame:
+    """Predict race from first name, last name, and geography. The output from
+    pyethnicity.predict_race_flg is ensembled with pyethnicty.bisg and pyethnicty.bifsg.
+
+    Parameters
+    ----------
+    first_name : Name
+        A string or array-like of strings
+    last_name : Name
+        A string or array-like of strings
+    geography : Geography
+        A scalar or array-like of geographies
+    geo_type : GeoType
+         One of `zcta` or `tract`
+    chunksize : int, optional
+        How many rows are passed to the ONNX session at a time, by default 1028
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame of first_name, last_name, geography, and `P(r|n,g)` for Asian,
+        Black, Hispanic, and White.
+
+    Notes
+    -----
+    The data files can be found in:
+        - data/models/first_last.onnx
+        - data/distributions/prob_race_given_last_name.parquet
+        - data/distributions/prob_zcta_given_race_2010.parquet
+        - data/distributions/prob_tract_given_race_2010.parquet
+        - data/distributionsprob_first_name_given_race.parquet
+
+    Examples
+    --------
+    >>> import pyethnicity
+    >>> pyethnicity.predict_race(
+            first_name="cangyuan", last_name="li", geography=11106, geo_type="zcta"
+        )
+    >>> pyethnicity.predict_race(
+            first_name=["cangyuan", "mark"], last_name=["li", "luo"],
+            geography=[11106, 27106], geo_type="zcta"
+        )
+    """
     flz = predict_race_flg(first_name, last_name, geography, geo_type, chunksize)
     bifsg_ = bifsg(first_name, last_name, geography, geo_type)
     bisg_ = bisg(last_name, geography, geo_type)

@@ -127,6 +127,45 @@ def _bng(
 
 
 def bisg(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFrame:
+    """Implements Bayesian Improved Surname Geocoding (BISG), developed by
+    Elliot et. al (2009) https://link.springer.com/article/10.1007/s10742-009-0047-1.
+    Pyethnicty augments the Census surname list with distributions calculated from
+    voter registration data sourced from L2.
+
+    `P(r|s,g) = [P(r|s) × P(g|r)] / [∑ P(r|s) × P(g|r)]`
+
+    where `r` is race, `s` is surname, and `g` is geography. The sum is across all
+    races, i.e. Asian, Black, Hispanic, and White.
+
+    Parameters
+    ----------
+    last_name : Name
+        A string or array-like of strings
+    geography : Geography
+        A scalar or array-like of geographies
+    geo_type : GeoType
+        One of `zcta` or `tract`
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame of last_name, geography, and `P(r | s, g)` for Asian, Black,
+        Hispanic, and White. If either the last name or geography cannot be found,
+        the probability is `NaN`.
+
+    Notes
+    -----
+    The data files can be found in:
+        - data/distributionsprob_race_given_last_name.parquet
+        - data/distributionsprob_zcta_given_race_2010.parquet
+        - data/distributionsprob_tract_given_race_2010.parquet
+
+    Examples
+    --------
+    >>> import pyethnicity
+    >>> pyethnicity.bisg(last_name="li", zcta=27106, geo_type="zcta")
+    >>> pyethnicity.bisg(last_name=["li", "luo"], zcta=[27106, 11106], geo_type="zcta")
+    """
     _assert_equal_lengths(last_name, geography)
 
     last_name_cleaned = _normalize_name(last_name, "last_name")
@@ -154,6 +193,55 @@ def bisg(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFra
 def bifsg(
     first_name: Name, last_name: Name, geography: Geography, geo_type: GeoType
 ) -> pd.DataFrame:
+    """Implements Bayesian Improved Firstname Surname Geocoding (BIFSG), developed by
+    Voicu (2018) https://www.tandfonline.com/doi/full/10.1080/2330443X.2018.1427012.
+    Pyethnicty augments the Census surname list and HMDA first name list with
+    distributions calculated from voter registration data sourced from L2.
+
+    `P(r|f,s,g) = [P(r|s) × P(f|r) × P(g|r)] / [∑ P(r|s) × P(f|r) × P(g|r)]`
+
+    where `r` is race, `f` is first name, `s` is surname, and `g` is geography. The sum
+    is across all races, i.e. Asian, Black, Hispanic, and White.
+
+    Parameters
+    ----------
+    first_name: Name
+        A string or array-like of strings
+    last_name : Name
+        A string or array-like of strings
+    geography : Geography
+        A scalar or array-like of geographies
+    geo_type : GeoType
+        One of `zcta` or `tract`
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame of last_name, geography, and `P(r|f,s,g)` for Asian, Black,
+        Hispanic, and White. If either the first name, last name or geography cannot
+        be found, the probability is `NaN`.
+
+    Notes
+    -----
+    The data files can be found in:
+        - data/distributionsprob_first_name_given_race.parquet
+        - data/distributionsprob_race_given_last_name.parquet
+        - data/distributionsprob_zcta_given_race_2010.parquet
+        - data/distributionsprob_tract_given_race_2010.parquet
+
+    Examples
+    --------
+    >>> import pyethnicity
+    >>> pyethnicity.bifsg(
+            first_name="cangyuan", last_name="li", zcta=27106, geo_type="zcta"
+        )
+    >>> pyethnicity.bifsg(
+            first_name=["cangyuan", "mark"],
+            last_name=["li", "luo"],
+            zcta=[27106, 11106],
+            geo_type="zcta"
+        )
+    """
     _assert_equal_lengths(first_name, last_name, geography)
 
     first_name_cleaned = _normalize_name(first_name, "first_name")
