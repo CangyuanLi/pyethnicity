@@ -1,9 +1,4 @@
-# ruff: noqa: E402
 from __future__ import annotations
-
-import os
-
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 import string
 from typing import Literal, Optional
