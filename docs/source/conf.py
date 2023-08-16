@@ -9,14 +9,17 @@
 import sys
 from pathlib import Path
 
-import pyethnicity
+BASE_PATH = Path(__file__).resolve().parents[2] / "src"
 
-sys.path.insert(0, Path(__file__).resolve().parents[1] / "src")
+sys.path.insert(0, BASE_PATH)
+
+with open(BASE_PATH / "pyethnicity/__init__.py", "r") as f:
+    version_no = f.readlines()[0].split("=")[1].strip()
 
 project = "pyethnicity"
 copyright = "2023, Cangyuan Li"
 author = "Cangyuan Li"
-release = pyethnicity.__version__
+release = version_no
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
