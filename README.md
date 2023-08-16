@@ -28,6 +28,8 @@ Please see the correpsonding paper ["Can We Trust Race Prediction?"](https://git
 
 # Usage:
 
+Please see https://pyethnicity.readthedocs.io/en/latest/ for full documentation.
+
 ## Installing
 
 The easiest way is to install **pyethnicity** is from PyPI using pip:
