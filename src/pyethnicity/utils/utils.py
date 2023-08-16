@@ -1,14 +1,14 @@
 import functools
 import math
 from collections.abc import Sequence
-from typing import SupportsFloat, SupportsIndex
+from typing import SupportsFloat, SupportsIndex, Union
 
 from .types import ArrayLike
 
 RACES = ("asian", "black", "hispanic", "white")
 
 
-def _assert_equal_lengths(*inputs: object | ArrayLike):
+def _assert_equal_lengths(*inputs: Union[object, ArrayLike]):
     lengths = []
 
     for input in inputs:
