@@ -25,11 +25,11 @@ release = version_no
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.mathjax",
-    "sphinx.ext.autodoc.typehints",
     "sphinx_copybutton",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autodoc.typehints",
 ]
 
 templates_path = ["_templates"]
@@ -39,6 +39,7 @@ add_module_names = False
 autodoc_typehints = "description"
 pygments_style = "sphinx"
 copybutton_exclude = ".linenos, .gp"
+# autoapi_dirs = [BASE_PATH]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
