@@ -1,5 +1,5 @@
 Installation
-------------
+============
 
 The easiest way to install **pyethnicity** is through **pip**. Simply run
 

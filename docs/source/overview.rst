@@ -1,5 +1,5 @@
 Overview
---------
+========
 
 **Pyethnicity** is a library that helps you proxy race / ethnicity based on name and
 location. It is free and open-source, released under the MIT license. Race prediction

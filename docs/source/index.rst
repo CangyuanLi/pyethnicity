@@ -3,12 +3,15 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Pyethnicity
-=======================================
-
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :hidden:
+   :maxdepth: 1
+
+   overview
+   installation
+   bayesian_models
+   ml_models
+   contributors
 
 .. include:: overview.rst
 
