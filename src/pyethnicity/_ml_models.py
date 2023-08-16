@@ -211,10 +211,12 @@ def predict_race_flg(
     geo_type: GeoType,
     chunksize: int = CHUNKSIZE,
 ) -> pd.DataFrame:
-    """Predict race from first name, last name, and geography. The output from
+    r"""Predict race from first name, last name, and geography. The output from
     pyethnicity.predict_race_fl is combined with geography using Naive Bayes:
 
-    `P(r|n,g) = [P(r|n) × P(g|r)] / [∑ P(r|n) × P(g|r)]`
+    .. math::
+
+        P(r|n,g) = \frac{P(r|n) \times P(g|r)}{\sum_{r=1}^4 P(r|n) \times P(g|r)}
 
     where `r` is race, `n` is name, and `g` is geography. The sum is across all races,
     i.e. Asian, Black, Hispanic, and White.
@@ -250,12 +252,12 @@ def predict_race_flg(
     --------
     >>> import pyethnicity
     >>> pyethnicity.predict_race_flg(
-            first_name="cangyuan", last_name="li", geography=11106, geo_type="zcta"
-        )
+    >>>     first_name="cangyuan", last_name="li", geography=11106, geo_type="zcta"
+    >>> )
     >>> pyethnicity.predict_race_flg(
-            first_name=["cangyuan", "mark"], last_name=["li", "luo"],
-            geography=[11106, 27106], geo_type="zcta"
-        )
+    >>>     first_name=["cangyuan", "mark"], last_name=["li", "luo"],
+    >>>     geography=[11106, 27106], geo_type="zcta"
+    >>> )
     """
     fl_preds = predict_race_fl(first_name, last_name, chunksize)
 
@@ -289,7 +291,8 @@ def predict_race(
     -------
     pd.DataFrame
         A DataFrame of first_name, last_name, geography, and `P(r|n,g)` for Asian,
-        Black, Hispanic, and White.
+        Black, Hispanic, and White. If the geography cannot be found, the probability
+        is `NaN`.
 
     Notes
     -----
@@ -304,12 +307,12 @@ def predict_race(
     --------
     >>> import pyethnicity
     >>> pyethnicity.predict_race(
-            first_name="cangyuan", last_name="li", geography=11106, geo_type="zcta"
-        )
+    >>>     first_name="cangyuan", last_name="li", geography=11106, geo_type="zcta"
+    >>> )
     >>> pyethnicity.predict_race(
-            first_name=["cangyuan", "mark"], last_name=["li", "luo"],
-            geography=[11106, 27106], geo_type="zcta"
-        )
+    >>>     first_name=["cangyuan", "mark"], last_name=["li", "luo"],
+    >>>     geography=[11106, 27106], geo_type="zcta"
+    >>> )
     """
     flz = predict_race_flg(first_name, last_name, geography, geo_type, chunksize)
     bifsg_ = bifsg(first_name, last_name, geography, geo_type)

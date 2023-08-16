@@ -127,12 +127,14 @@ def _bng(
 
 
 def bisg(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFrame:
-    """Implements Bayesian Improved Surname Geocoding (BISG), developed by
+    r"""Implements Bayesian Improved Surname Geocoding (BISG), developed by
     Elliot et. al (2009) https://link.springer.com/article/10.1007/s10742-009-0047-1.
-    Pyethnicty augments the Census surname list with distributions calculated from
+    Pyethnicity augments the Census surname list with distributions calculated from
     voter registration data sourced from L2.
 
-    `P(r|s,g) = [P(r|s) × P(g|r)] / [∑ P(r|s) × P(g|r)]`
+    .. math::
+
+        P(r|s,g) = \frac{P(r|s) \times P(g|r)}{\sum_{r=1}^4 P(r|s) \times P(g|r)}
 
     where `r` is race, `s` is surname, and `g` is geography. The sum is across all
     races, i.e. Asian, Black, Hispanic, and White.
@@ -193,12 +195,15 @@ def bisg(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFra
 def bifsg(
     first_name: Name, last_name: Name, geography: Geography, geo_type: GeoType
 ) -> pd.DataFrame:
-    """Implements Bayesian Improved Firstname Surname Geocoding (BIFSG), developed by
+    r"""Implements Bayesian Improved Firstname Surname Geocoding (BIFSG), developed by
     Voicu (2018) https://www.tandfonline.com/doi/full/10.1080/2330443X.2018.1427012.
-    Pyethnicty augments the Census surname list and HMDA first name list with
-    distributions calculated from voter registration data sourced from L2.
+    Pyethnicity augments the Census surname list and HMDA first name list with
+    distributions calculated from voter registration data sourced from L2. BIFSG is
+    implemented as follows:
 
-    `P(r|f,s,g) = [P(r|s) × P(f|r) × P(g|r)] / [∑ P(r|s) × P(f|r) × P(g|r)]`
+    .. math::
+
+        P(r|f,s,g) = \frac{P(r|s) \times P(f|r) \times P(g|r)}{\sum_{r=1}^4 P(r|s) \times P(f|r) \times P(g|r)}
 
     where `r` is race, `f` is first name, `s` is surname, and `g` is geography. The sum
     is across all races, i.e. Asian, Black, Hispanic, and White.
@@ -236,11 +241,11 @@ def bifsg(
             first_name="cangyuan", last_name="li", zcta=27106, geo_type="zcta"
         )
     >>> pyethnicity.bifsg(
-            first_name=["cangyuan", "mark"],
-            last_name=["li", "luo"],
-            zcta=[27106, 11106],
-            geo_type="zcta"
-        )
+    >>> first_name=["cangyuan", "mark"],
+    >>>     last_name=["li", "luo"],
+    >>>     zcta=[27106, 11106],
+    >>>     geo_type="zcta"
+    >>> )
     """
     _assert_equal_lengths(first_name, last_name, geography)
 
