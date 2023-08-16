@@ -12,8 +12,14 @@ certifi==2023.7.22
     # via requests
 charset-normalizer==3.2.0
     # via requests
+coloredlogs==15.0.1
+    # via onnxruntime-gpu
 docutils==0.20.1
     # via sphinx
+flatbuffers==23.5.26
+    # via onnxruntime-gpu
+humanfriendly==10.0
+    # via coloredlogs
 idna==3.4
     # via requests
 imagesize==1.4.1
@@ -22,12 +28,41 @@ jinja2==3.1.2
     # via sphinx
 markupsafe==2.1.3
     # via jinja2
+mpmath==1.3.0
+    # via sympy
+numpy==1.25.2
+    # via
+    #   onnxruntime-gpu
+    #   pandas
+    #   pyarrow
+onnxruntime-gpu==1.15.1
+    # via pyethnicity
 packaging==23.1
-    # via sphinx
+    # via
+    #   onnxruntime-gpu
+    #   sphinx
+pandas==2.0.3
+    # via pyethnicity
+polars==0.18.15
+    # via pyethnicity
+protobuf==4.24.0
+    # via onnxruntime-gpu
+pyarrow==12.0.1
+    # via pyethnicity
+pycutils==0.1.1
+    # via pyethnicity
+pyethnicity==0.0.5
+    # via -r docs/requirements.in
 pygments==2.16.1
     # via sphinx
+python-dateutil==2.8.2
+    # via pandas
+pytz==2023.3
+    # via pandas
 requests==2.31.0
     # via sphinx
+six==1.16.0
+    # via python-dateutil
 snowballstemmer==2.2.0
     # via sphinx
 sphinx==7.1.2
@@ -53,5 +88,11 @@ sphinxcontrib-qthelp==1.0.6
     # via sphinx
 sphinxcontrib-serializinghtml==1.1.8
     # via sphinx
+sympy==1.12
+    # via onnxruntime-gpu
+tqdm==4.66.1
+    # via pyethnicity
+tzdata==2023.3
+    # via pandas
 urllib3==2.0.4
     # via requests
