@@ -1,0 +1,6 @@
+onnxruntime-gpu
+pandas
+polars
+pyarrow
+pycutils
+tqdm
