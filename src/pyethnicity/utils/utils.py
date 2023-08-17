@@ -34,5 +34,5 @@ def _std_norm(values: Sequence[float]) -> list[float]:
     return [v / total for v in values]
 
 
-def _is_null(x: SupportsFloat | SupportsIndex):
+def _is_null(x: Union[SupportsFloat, SupportsIndex]):
     return math.isnan(x) or x is None
