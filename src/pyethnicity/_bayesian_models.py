@@ -254,14 +254,14 @@ def bifsg(
 
     df = pl.concat([first_name_cleaned, last_name_cleaned], how="horizontal")
 
-    prob_first_name_given_race = df.join(
+    prob_first_name_given_race: pl.DataFrame = df.join(
         RESOURCE_LOADER.load("prob_first_name_given_race"),
         left_on="first_name",
         right_on="name",
         how="left",
     ).select(RACES)
 
-    prob_race_given_last_name = df.join(
+    prob_race_given_last_name: pl.DataFrame = df.join(
         RESOURCE_LOADER.load("prob_race_given_last_name"),
         left_on="last_name",
         right_on="name",
@@ -276,7 +276,7 @@ def bifsg(
     bifsg_denom = bifsg_numer.sum(axis=1)
     bifsg_probs = bifsg_numer / bifsg_denom
 
-    df = bifsg_probs.to_pandas()
+    df: pd.DataFrame = bifsg_probs.to_pandas()
     df.insert(0, "first_name", first_name)
     df.insert(1, "last_name", last_name)
     df.insert(2, geo_type, geography)
