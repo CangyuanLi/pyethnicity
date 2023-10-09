@@ -51,7 +51,7 @@ def _encode_name(name: str, mapper: dict = CHAR_MAPPER, max_len: int = 15):
     ids = [0] * max_len
     for i, c in enumerate(name):
         if i < max_len:
-            ids[i] = mapper[c]
+            ids[i] = mapper.get(c, mapper["U"])
 
     return ids
 
