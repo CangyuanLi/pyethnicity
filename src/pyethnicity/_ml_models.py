@@ -349,7 +349,7 @@ def predict_race(
     return df
 
 
-def predict_sex_f(first_name: Name, chunksize: int = CHUNKSIZE):
+def predict_sex_f(first_name: Name, chunksize: int = CHUNKSIZE) -> pd.DataFrame:
     """Predict sex from first name.
 
     Parameters
