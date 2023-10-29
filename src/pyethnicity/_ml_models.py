@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import string
 from typing import Literal, Optional
 
@@ -32,6 +33,7 @@ class ModelLoader:
     def __init__(self):
         self._models: dict[Model] = {
             "first_last": None,
+            "first_sex": None,
         }
 
     def load(self, model: Model) -> onnxruntime.InferenceSession:
@@ -48,10 +50,11 @@ MODEL_LOADER = ModelLoader()
 
 
 def _encode_name(name: str, mapper: dict = CHAR_MAPPER, max_len: int = 15):
+    out_of_vocab = mapper["U"] if mapper == CHAR_MAPPER else ""
     ids = [0] * max_len
     for i, c in enumerate(name):
         if i < max_len:
-            ids[i] = mapper.get(c, mapper["U"])
+            ids[i] = mapper.get(c, out_of_vocab)
 
     return ids
 
@@ -342,5 +345,51 @@ def predict_race(
     df.insert(0, "first_name", first_name)
     df.insert(1, "last_name", last_name)
     df.insert(2, geo_type, geography)
+
+    return df
+
+
+def predict_sex_f(first_name: Name, chunksize: int = CHUNKSIZE):
+    """Predict sex from first name.
+
+    Parameters
+    ----------
+    first_name : Name
+        A string or array-like of strings
+    chunksize : int, optional
+        How many rows are passed to the ONNX session at a time, by default 1028
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame of first_name, pct_male, and pct_female.
+
+    Examples
+    --------
+    >>> import pyethnicity
+    >>> pyethnicity.predict_sex_f(first_name="cangyuan")
+    >>> pyethnicity.predict_sex_f(first_name=["cangyuan", "mercy"])
+    """
+    first_name_cleaned = _normalize_name(first_name)
+
+    X = [_encode_name(fn, mapper=VALID_NAME_CHARS_DICT) for fn in first_name_cleaned]
+    X = _pad_sequences(X, maxlen=15).astype(np.float32)
+
+    model = MODEL_LOADER.load("first_sex")
+
+    input_name = model.get_inputs()[0].name
+
+    with tqdm.tqdm(total=len(X)) as pbar:
+        y_pred = []
+        for input_ in cutils.chunk_seq(X, chunksize):
+            y_pred.extend(model.run(None, input_feed={input_name: input_})[0])
+            pbar.update(len(input_))
+
+    pct_male = [row[0] for row in y_pred]
+
+    df = pd.DataFrame()
+    df["male"] = pct_male
+    df["female"] = 1 - df["male"]
+    df.insert(0, "first_name", first_name)
 
     return df
