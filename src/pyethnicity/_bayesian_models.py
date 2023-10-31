@@ -159,9 +159,9 @@ def bisg(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFra
     Notes
     -----
     The data files can be found in:
-        - data/distributionsprob_race_given_last_name.parquet
-        - data/distributionsprob_zcta_given_race_2010.parquet
-        - data/distributionsprob_tract_given_race_2010.parquet
+        - data/distributions/prob_race_given_last_name.parquet
+        - data/distributions/prob_zcta_given_race_2010.parquet
+        - data/distributions/prob_tract_given_race_2010.parquet
 
     Examples
     --------
@@ -230,10 +230,10 @@ def bifsg(
     Notes
     -----
     The data files can be found in:
-        - data/distributionsprob_first_name_given_race.parquet
-        - data/distributionsprob_race_given_last_name.parquet
-        - data/distributionsprob_zcta_given_race_2010.parquet
-        - data/distributionsprob_tract_given_race_2010.parquet
+        - data/distributions/prob_first_name_given_race.parquet
+        - data/distributions/prob_race_given_last_name.parquet
+        - data/distributions/prob_zcta_given_race_2010.parquet
+        - data/distributions/prob_tract_given_race_2010.parquet
 
     Examples
     --------
