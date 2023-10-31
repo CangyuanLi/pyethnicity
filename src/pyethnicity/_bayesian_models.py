@@ -8,7 +8,7 @@ import pandas as pd
 import polars as pl
 
 from .utils.paths import DIST_PATH
-from .utils.types import Geography, GeoType, Name
+from .utils.types import Geography, GeoType, Name, Year
 from .utils.utils import RACES, _assert_equal_lengths, _remove_single_chars
 
 UNWANTED_CHARS = string.digits + string.punctuation + string.whitespace
@@ -21,6 +21,7 @@ Resource = Literal[
     "prob_race_given_zcta_2010",
     "prob_tract_given_race_2010",
     "prob_race_given_tract_2010",
+    "ssa",
 ]
 
 
@@ -282,3 +283,110 @@ def bifsg(
     df.insert(2, geo_type, geography)
 
     return df
+
+
+def _get_correction_factor(df: pl.DataFrame) -> tuple[float, float]:
+    female = df.get_column("count_female").sum()
+    male = df.get_column("count_male").sum()
+
+    ratio_female = female / (male + female)
+    ratio_male = 1 - ratio_female
+
+    return (0.5 / ratio_female, 0.5 / ratio_male)
+
+
+def predict_sex_ssa(
+    first_name: Name,
+    min_year: Year = 1880,
+    max_year: Year = 2022,
+    correct_skew: bool = True,
+) -> pd.DataFrame:
+    """Predicts sex from first name and a year range using Social Security
+    Administration data. It simply calculates the proportion of people with a certain
+    name in a certain year range that are male and female.
+
+    Parameters
+    ----------
+    first_name : Name
+        A string or array-like of strings
+    min_year : Year, optional
+        An int or array-like of ints, by default 1880
+    max_year : Year, optional
+        An int or array-like of ints, by default 2022
+    correct_skew : bool, optional
+        Whether to correct the skew in the SSA data, by default True
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame of first_name, min_year, max_year, pct_female, and pct_male.
+
+    Notes
+    -----
+    The data files can be found in:
+        - data/distributions/ssa.parquet
+
+    Examples
+    --------
+    >>> import pyethnicity
+    >>> pyethnicity.predict_sex_ssa(first_name="john")
+    >>> pyethnicity.predict_sex_ssa(first_name=["john", "mary"], min_year=[1880, 1990])
+    """
+    if isinstance(first_name, str):
+        first_name = [first_name]
+
+    # broadcast years
+    target_len = len(first_name)
+
+    if isinstance(min_year, int):
+        min_year = [min_year for _ in range(target_len)]
+
+    if isinstance(max_year, int):
+        max_year = [max_year for _ in range(target_len)]
+
+    _assert_equal_lengths(first_name, min_year, max_year)
+
+    # create dataframe of inputs to merge on
+    inputs = (
+        pl.LazyFrame(
+            {"first_name": first_name, "min_year": min_year, "max_year": max_year}
+        )
+        .with_columns(first_name=pl.col("first_name").str.to_lowercase())
+        .collect()
+    )
+
+    df = (
+        inputs.join(RESOURCE_LOADER.load("ssa"), on="first_name", how="left")
+        .filter(
+            pl.col("year").is_between(
+                pl.col("min_year"), pl.col("max_year"), closed="both"
+            )
+            | pl.col("year").is_null()
+        )
+        .groupby("first_name", "min_year", "max_year")
+        .agg(pl.col("count_female", "count_male").sum())
+    )
+
+    if correct_skew:
+        try:
+            correx = _get_correction_factor(df)
+        except ZeroDivisionError:
+            correx = (1, 1)
+    else:
+        correx = (1, 1)
+    female_correx, male_correx = correx
+
+    res = (
+        df.with_columns(
+            pl.col("count_female") * female_correx,
+            pl.col("count_male") * male_correx,
+        )
+        .with_columns(total=pl.col("count_female") + pl.col("count_male"))
+        .with_columns(
+            pct_female=pl.col("count_female") / pl.col("total"),
+            pct_male=pl.col("count_male") / pl.col("total"),
+        )
+        .select("first_name", "min_year", "max_year", "pct_female", "pct_male")
+    )
+
+    return res.to_pandas()

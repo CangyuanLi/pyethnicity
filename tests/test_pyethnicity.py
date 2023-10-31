@@ -1,4 +1,11 @@
+import math
+from pathlib import Path
+
+import polars as pl
+
 import pyethnicity
+
+BASE_PATH = Path(__file__).resolve().parents[0]
 
 ZCTA = 11106
 TRACT = 72153750502
@@ -43,3 +50,36 @@ def test_bifsg():
                 ["first_name", "last_name"], axis=1
             )
         )
+
+
+# def test_ssa():
+#     r_results = (
+#         pl.scan_csv(BASE_PATH / "gender_r_package_results.csv")
+#         .rename(
+#             {
+#                 "name": "first_name",
+#                 "year_min": "min_year",
+#                 "year_max": "max_year",
+#                 "proportion_male": "pct_male_r",
+#                 "proportion_female": "pct_female_r",
+#             }
+#         )
+#         .drop("gender")
+#         .collect()
+#     )
+
+#     py_results = pyethnicity.predict_sex_ssa(
+#         r_results.get_column("first_name"), min_year=1990, max_year=2000
+#     )
+
+#     df = r_results.join(
+#         pl.from_pandas(py_results),
+#         on=["first_name", "min_year", "max_year"],
+#         how="left",
+#     )
+
+#     for pct_female_r, pct_male_r, pct_female, pct_male in df.select(
+#         "pct_female_r", "pct_male_r", "pct_female", "pct_male"
+#     ).iter_rows():
+#         assert math.isclose(pct_female_r, pct_female)
+#         assert math.isclose(pct_male_r, pct_male)
