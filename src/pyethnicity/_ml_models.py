@@ -16,6 +16,7 @@ from .utils.types import Geography, GeoType, Model, Name
 from .utils.utils import (
     RACES,
     _assert_equal_lengths,
+    _download,
     _is_null,
     _remove_single_chars,
     _std_norm,
@@ -37,8 +38,12 @@ class ModelLoader:
 
     def load(self, model: Model) -> onnxruntime.InferenceSession:
         if self._models[model] is None:
+            file = f"{model}.onnx"
+            if not (MODEL_PATH / file).exists():
+                _download(f"models/{file}")
+
             self._models[model] = onnxruntime.InferenceSession(
-                MODEL_PATH / f"{model}.onnx",
+                MODEL_PATH / file,
                 providers=onnxruntime.get_available_providers(),
             )
 
@@ -303,7 +308,7 @@ def predict_race(
         - data/distributions/prob_race_given_last_name.parquet
         - data/distributions/prob_zcta_given_race_2010.parquet
         - data/distributions/prob_tract_given_race_2010.parquet
-        - data/distributionsprob_first_name_given_race.parquet
+        - data/distributions/prob_first_name_given_race.parquet
 
     Examples
     --------

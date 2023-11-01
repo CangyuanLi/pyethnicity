@@ -9,7 +9,7 @@ import polars as pl
 
 from .utils.paths import DIST_PATH
 from .utils.types import Geography, GeoType, Name, Year
-from .utils.utils import RACES, _assert_equal_lengths, _remove_single_chars
+from .utils.utils import RACES, _assert_equal_lengths, _download, _remove_single_chars
 
 UNWANTED_CHARS = string.digits + string.punctuation + string.whitespace
 
@@ -33,9 +33,11 @@ class ResourceLoader:
 
     def load(self, resource: Resource) -> pl.DataFrame:
         if self._resources[resource] is None:
-            self._resources[resource] = pl.read_parquet(
-                DIST_PATH / f"{resource}.parquet"
-            )
+            file = f"{resource}.parquet"
+            if not (DIST_PATH / file).exists():
+                _download(f"distributions/{file}")
+
+            self._resources[resource] = pl.read_parquet(DIST_PATH / file)
 
         data = self._resources[resource]
         assert data is not None

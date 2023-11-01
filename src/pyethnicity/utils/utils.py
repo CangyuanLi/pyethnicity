@@ -3,6 +3,9 @@ import math
 from collections.abc import Sequence
 from typing import SupportsFloat, SupportsIndex, Union
 
+import requests
+
+from .paths import DAT_PATH
 from .types import ArrayLike
 
 RACES = ("asian", "black", "hispanic", "white")
@@ -36,3 +39,17 @@ def _std_norm(values: Sequence[float]) -> list[float]:
 
 def _is_null(x: Union[SupportsFloat, SupportsIndex]):
     return math.isnan(x) or x is None
+
+
+def _download(path: str):
+    r = requests.get(
+        f"https://raw.githubusercontent.com/CangyuanLi/pyethnicity/master/src/pyethnicity/data/{path}"
+    )
+    if r.status_code != 200:
+        raise requests.exceptions.HTTPError(f"{r.status_code}: DOWNLOAD FAILED")
+
+    parent_folder = path.split("/")[0]
+    (DAT_PATH / parent_folder).mkdir(exist_ok=True)
+
+    with open(DAT_PATH / path, "wb") as f:
+        f.write(r.content)
