@@ -301,9 +301,14 @@ def _get_correction_factor(
     res_max_year = []
     female_correx = []
     male_correx = []
-    for min_year, max_year in zip(min_years, max_years):
-        female = df.get_column("count_female").sum()
-        male = df.get_column("count_male").sum()
+
+    year_df = (
+        pl.LazyFrame({"min_year": min_years, "max_year": max_years}).unique().collect()
+    )
+    for min_year, max_year in year_df.iter_rows():
+        subset = df.filter(pl.col("year").is_between(min_year, max_year, closed="both"))
+        female = subset.get_column("count_female").sum()
+        male = subset.get_column("count_male").sum()
 
         try:
             correx = _calc_correx(female, male)
