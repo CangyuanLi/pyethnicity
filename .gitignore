@@ -132,7 +132,6 @@ cython_debug/
 **/.mypy_cache
 
 **.csv
-**.parquet
 **.dta
 **.smcl
 **.zip
