@@ -77,6 +77,7 @@ def test_bifsg():
 #         on=["first_name", "min_year", "max_year"],
 #         how="left",
 #     )
+#     print(df)
 
 #     for pct_female_r, pct_male_r, pct_female, pct_male in df.select(
 #         "pct_female_r", "pct_male_r", "pct_female", "pct_male"

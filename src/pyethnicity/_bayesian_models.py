@@ -285,14 +285,43 @@ def bifsg(
     return df
 
 
-def _get_correction_factor(df: pl.DataFrame) -> tuple[float, float]:
-    female = df.get_column("count_female").sum()
-    male = df.get_column("count_male").sum()
-
+def _calc_correx(female: int, male: int) -> tuple[float, float]:
     ratio_female = female / (male + female)
     ratio_male = 1 - ratio_female
 
     return (0.5 / ratio_female, 0.5 / ratio_male)
+
+
+def _get_correction_factor(
+    df: pl.DataFrame, min_years: list[int], max_years: list[int]
+) -> pl.DataFrame:
+    res_min_year = []
+    res_max_year = []
+    female_correx = []
+    male_correx = []
+    for min_year, max_year in zip(min_years, max_years):
+        female = df.get_column("count_female").sum()
+        male = df.get_column("count_male").sum()
+
+        try:
+            correx = _calc_correx(female, male)
+        except ZeroDivisionError:
+            correx = (1, 1)
+        fc, mc = correx
+
+        res_min_year.append(min_year)
+        res_max_year.append(max_year)
+        female_correx.append(fc)
+        male_correx.append(mc)
+
+    return pl.DataFrame(
+        {
+            "min_year": res_min_year,
+            "max_year": res_max_year,
+            "female_correx": female_correx,
+            "male_correx": male_correx,
+        }
+    )
 
 
 def predict_sex_ssa(
@@ -355,8 +384,10 @@ def predict_sex_ssa(
         .collect()
     )
 
+    ssa = RESOURCE_LOADER.load("ssa")
+
     df = (
-        inputs.join(RESOURCE_LOADER.load("ssa"), on="first_name", how="left")
+        inputs.join(ssa, on="first_name", how="left")
         .filter(
             pl.col("year").is_between(
                 pl.col("min_year"), pl.col("max_year"), closed="both"
@@ -368,18 +399,15 @@ def predict_sex_ssa(
     )
 
     if correct_skew:
-        try:
-            correx = _get_correction_factor(df)
-        except ZeroDivisionError:
-            correx = (1, 1)
+        correx = _get_correction_factor(ssa, min_year, max_year)
+        df = df.join(correx, on=["min_year", "max_year"], how="left")
     else:
-        correx = (1, 1)
-    female_correx, male_correx = correx
+        df.with_columns(female_correx=pl.lit(1), male_correx=pl.lit(1))
 
     res = (
         df.with_columns(
-            pl.col("count_female") * female_correx,
-            pl.col("count_male") * male_correx,
+            pl.col("count_female") * pl.col("female_correx"),
+            pl.col("count_male") * pl.col("male_correx"),
         )
         .with_columns(total=pl.col("count_female") + pl.col("count_male"))
         .with_columns(
