@@ -1,0 +1,2 @@
+exclude src/pyethnicity/data/models/first_last.onnx
+exclude src/pyethnicity/data/models/first_sex.onnx
