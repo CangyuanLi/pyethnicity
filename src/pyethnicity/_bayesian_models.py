@@ -531,14 +531,14 @@ def predict_sex_ssa(
         pl.LazyFrame(
             {"first_name": first_name, "min_year": min_year, "max_year": max_year}
         )
-        .with_columns(first_name=pl.col("first_name").str.to_lowercase())
+        .with_columns(first_name_clean=pl.col("first_name").str.to_lowercase())
         .collect()
     )
 
     ssa = RESOURCE_LOADER.load("ssa")
 
     df = (
-        inputs.join(ssa, on="first_name", how="left")
+        inputs.join(ssa, left_on="first_name_clean", right_on="first_name", how="left")
         .filter(
             pl.col("year").is_between(
                 pl.col("min_year"), pl.col("max_year"), closed="both"
