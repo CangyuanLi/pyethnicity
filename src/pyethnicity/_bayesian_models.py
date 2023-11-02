@@ -148,7 +148,7 @@ def _bisg_internal(
         prob_race_given_last_name_path = "6cat/prob_race_given_last_name"
     else:
         races = RACES
-        prob_race_given_last_name_path = "6cat/prob_race_given_last_name"
+        prob_race_given_last_name_path = "prob_race_given_last_name"
 
     _assert_equal_lengths(last_name, geography)
 
