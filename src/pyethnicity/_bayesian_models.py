@@ -532,13 +532,15 @@ def predict_sex_ssa(
             {"first_name": first_name, "min_year": min_year, "max_year": max_year}
         )
         .with_columns(first_name_clean=pl.col("first_name").str.to_lowercase())
-        .collect()
+        .unique(["first_name", "min_year", "max_year"])
     )
 
     ssa = RESOURCE_LOADER.load("ssa")
 
     df = (
-        inputs.join(ssa, left_on="first_name_clean", right_on="first_name", how="left")
+        inputs.join(
+            ssa.lazy(), left_on="first_name_clean", right_on="first_name", how="left"
+        )
         .filter(
             pl.col("year").is_between(
                 pl.col("min_year"), pl.col("max_year"), closed="both"
@@ -551,7 +553,7 @@ def predict_sex_ssa(
 
     if correct_skew:
         correx = _get_correction_factor(ssa, min_year, max_year)
-        df = df.join(correx, on=["min_year", "max_year"], how="left")
+        df = df.join(correx.lazy(), on=["min_year", "max_year"], how="left")
     else:
         df.with_columns(female_correx=pl.lit(1), male_correx=pl.lit(1))
 
@@ -568,4 +570,4 @@ def predict_sex_ssa(
         .select("first_name", "min_year", "max_year", "pct_female", "pct_male")
     )
 
-    return res.to_pandas()
+    return res.collect().to_pandas()
