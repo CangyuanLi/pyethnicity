@@ -9,6 +9,7 @@ from .paths import DAT_PATH
 from .types import ArrayLike
 
 RACES = ("asian", "black", "hispanic", "white")
+RACES_6 = ("asian", "black", "hispanic", "multiple", "native", "white")
 
 
 def _assert_equal_lengths(*inputs: Union[object, ArrayLike]):

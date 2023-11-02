@@ -9,7 +9,13 @@ import polars as pl
 
 from .utils.paths import DIST_PATH
 from .utils.types import Geography, GeoType, Name, Year
-from .utils.utils import RACES, _assert_equal_lengths, _download, _remove_single_chars
+from .utils.utils import (
+    RACES,
+    RACES_6,
+    _assert_equal_lengths,
+    _download,
+    _remove_single_chars,
+)
 
 UNWANTED_CHARS = string.digits + string.punctuation + string.whitespace
 
@@ -22,6 +28,11 @@ Resource = Literal[
     "prob_tract_given_race_2010",
     "prob_race_given_tract_2010",
     "ssa",
+    "6cat/prob_race_given_first_name",
+    "6cat/prob_first_name_given_race",
+    "6cat/prob_race_given_last_name",
+    "6cat/prob_race_given_zcta_2010",
+    "6cat/prob_race_given_tract_2010",
 ]
 
 
@@ -129,6 +140,40 @@ def _bng(
     ).to_pandas()
 
 
+def _bisg_internal(
+    last_name: Name, geography: Geography, geo_type: GeoType, is_6cat: bool
+) -> pd.DataFrame:
+    if is_6cat:
+        races = RACES_6
+        prob_race_given_last_name_path = "6cat/prob_race_given_last_name"
+    else:
+        races = RACES
+        prob_race_given_last_name_path = "6cat/prob_race_given_last_name"
+
+    _assert_equal_lengths(last_name, geography)
+
+    last_name_cleaned = _normalize_name(last_name, "last_name")
+
+    prob_race_given_last_name = last_name_cleaned.join(
+        RESOURCE_LOADER.load(prob_race_given_last_name_path),
+        left_on="last_name",
+        right_on="name",
+        how="left",
+    ).select(races)
+
+    prob_geo_given_race = _resolve_geography(geography, geo_type).select(races)
+
+    bisg_numer = prob_race_given_last_name * prob_geo_given_race
+    bisg_denom = bisg_numer.sum(axis=1)
+    bisg_probs = bisg_numer / bisg_denom
+
+    df = bisg_probs.to_pandas()
+    df.insert(0, "last_name", last_name)
+    df.insert(1, geo_type, geography)
+
+    return df
+
+
 def bisg(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFrame:
     r"""Implements Bayesian Improved Surname Geocoding (BISG), developed by
     Elliot et. al (2009) https://link.springer.com/article/10.1007/s10742-009-0047-1.
@@ -171,26 +216,102 @@ def bisg(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFra
     >>> pyethnicity.bisg(last_name="li", zcta=27106, geo_type="zcta")
     >>> pyethnicity.bisg(last_name=["li", "luo"], zcta=[27106, 11106], geo_type="zcta")
     """
-    _assert_equal_lengths(last_name, geography)
+    return _bisg_internal(last_name, geography, geo_type, is_6cat=False)
 
+
+def bisg6(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFrame:
+    r"""Implements Bayesian Improved Surname Geocoding (BISG), developed by
+    Elliot et. al (2009) https://link.springer.com/article/10.1007/s10742-009-0047-1.
+
+    .. math::
+
+        P(r|s,g) = \frac{P(r|s) \times P(g|r)}{\sum_{r=1}^6 P(r|s) \times P(g|r)}
+
+    where `r` is race, `s` is surname, and `g` is geography. The sum is across all
+    races, i.e. Asian, Black, Hispanic, Multiple, Native, and White.
+
+    Parameters
+    ----------
+    last_name : Name
+        A string or array-like of strings
+    geography : Geography
+        A scalar or array-like of geographies
+    geo_type : GeoType
+        One of `zcta` or `tract`
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame of last_name, geography, and `P(r | s, g)` for Asian, Black,
+        Hispanic, Multiple, Native and White. If either the last name or geography
+        cannot be found, the probability is `NaN`.
+
+    Notes
+    -----
+    The data files can be found in:
+        - data/distributions/6cat/prob_race_given_last_name.parquet
+        - data/distributions/prob_zcta_given_race_2010.parquet
+        - data/distributions/prob_tract_given_race_2010.parquet
+
+    Examples
+    --------
+    >>> import pyethnicity
+    >>> pyethnicity.bisg6(last_name="li", zcta=27106, geo_type="zcta")
+    >>> pyethnicity.bisg6(last_name=["li", "luo"], zcta=[27106, 11106], geo_type="zcta")
+    """
+    return _bisg_internal(last_name, geography, geo_type, is_6cat=True)
+
+
+def _bifsg_internal(
+    first_name: Name,
+    last_name: Name,
+    geography: Geography,
+    geo_type: GeoType,
+    is_6cat: bool,
+) -> pd.DataFrame:
+    if is_6cat:
+        races = RACES_6
+        prefix = "6cat/"
+    else:
+        races = RACES
+        prefix = ""
+
+    prob_first_name_given_race_path = f"{prefix}prob_first_name_given_race"
+    prob_race_given_last_name_path = f"{prefix}prob_race_given_last_name"
+
+    _assert_equal_lengths(first_name, last_name, geography)
+
+    first_name_cleaned = _normalize_name(first_name, "first_name")
     last_name_cleaned = _normalize_name(last_name, "last_name")
 
-    prob_race_given_last_name = last_name_cleaned.join(
-        RESOURCE_LOADER.load("prob_race_given_last_name"),
+    df = pl.concat([first_name_cleaned, last_name_cleaned], how="horizontal")
+
+    prob_first_name_given_race: pl.DataFrame = df.join(
+        RESOURCE_LOADER.load(prob_first_name_given_race_path),
+        left_on="first_name",
+        right_on="name",
+        how="left",
+    ).select(races)
+
+    prob_race_given_last_name: pl.DataFrame = df.join(
+        RESOURCE_LOADER.load(prob_race_given_last_name_path),
         left_on="last_name",
         right_on="name",
         how="left",
-    ).select(RACES)
+    ).select(races)
 
-    prob_geo_given_race = _resolve_geography(geography, geo_type).select(RACES)
+    prob_geo_given_race = _resolve_geography(geography, geo_type).select(races)
 
-    bisg_numer = prob_race_given_last_name * prob_geo_given_race
-    bisg_denom = bisg_numer.sum(axis=1)
-    bisg_probs = bisg_numer / bisg_denom
+    bifsg_numer = (
+        prob_first_name_given_race * prob_race_given_last_name * prob_geo_given_race
+    )
+    bifsg_denom = bifsg_numer.sum(axis=1)
+    bifsg_probs = bifsg_numer / bifsg_denom
 
-    df = bisg_probs.to_pandas()
-    df.insert(0, "last_name", last_name)
-    df.insert(1, geo_type, geography)
+    df: pd.DataFrame = bifsg_probs.to_pandas()
+    df.insert(0, "first_name", first_name)
+    df.insert(1, "last_name", last_name)
+    df.insert(2, geo_type, geography)
 
     return df
 
@@ -250,41 +371,64 @@ def bifsg(
     >>>     geo_type="zcta"
     >>> )
     """
-    _assert_equal_lengths(first_name, last_name, geography)
+    _bifsg_internal(first_name, last_name, geography, geo_type, is_6cat=False)
 
-    first_name_cleaned = _normalize_name(first_name, "first_name")
-    last_name_cleaned = _normalize_name(last_name, "last_name")
 
-    df = pl.concat([first_name_cleaned, last_name_cleaned], how="horizontal")
+def bifsg6(
+    first_name: Name, last_name: Name, geography: Geography, geo_type: GeoType
+) -> pd.DataFrame:
+    r"""Implements Bayesian Improved Firstname Surname Geocoding (BIFSG), developed by
+    Voicu (2018) https://www.tandfonline.com/doi/full/10.1080/2330443X.2018.1427012.
+    Note that when using 6 categories, only the Voicu data is used. BIFSG is implemented
+    as follows:
 
-    prob_first_name_given_race: pl.DataFrame = df.join(
-        RESOURCE_LOADER.load("prob_first_name_given_race"),
-        left_on="first_name",
-        right_on="name",
-        how="left",
-    ).select(RACES)
+    .. math:
 
-    prob_race_given_last_name: pl.DataFrame = df.join(
-        RESOURCE_LOADER.load("prob_race_given_last_name"),
-        left_on="last_name",
-        right_on="name",
-        how="left",
-    ).select(RACES)
+        P(r|f,s,g) = \frac{P(r|s) \times P(f|r) \times P(g|r)}{\sum_{r=1}^6 P(r|s) \times P(f|r) \times P(g|r)}
 
-    prob_geo_given_race = _resolve_geography(geography, geo_type).select(RACES)
+    where `r` is race, `f` is first name, `s` is surname, and `g` is geography. The sum
+    is across all races, i.e. Asian, Black, Hispanic, Multiple, Native, and White.
 
-    bifsg_numer = (
-        prob_first_name_given_race * prob_race_given_last_name * prob_geo_given_race
-    )
-    bifsg_denom = bifsg_numer.sum(axis=1)
-    bifsg_probs = bifsg_numer / bifsg_denom
+    Parameters
+    ----------
+    first_name: Name
+        A string or array-like of strings
+    last_name : Name
+        A string or array-like of strings
+    geography : Geography
+        A scalar or array-like of geographies
+    geo_type : GeoType
+        One of `zcta` or `tract`
 
-    df: pd.DataFrame = bifsg_probs.to_pandas()
-    df.insert(0, "first_name", first_name)
-    df.insert(1, "last_name", last_name)
-    df.insert(2, geo_type, geography)
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame of last_name, geography, and `P(r|f,s,g)` for Asian, Black,
+        Hispanic, Multiple, Native, and White. If either the first name, last name or
+        geography cannot be found, the probability is `NaN`.
 
-    return df
+    Notes
+    -----
+    The data files can be found in:
+        - data/distributions/6cat/prob_first_name_given_race.parquet
+        - data/distributions/6cat/prob_race_given_last_name.parquet
+        - data/distributions/prob_zcta_given_race_2010.parquet
+        - data/distributions/prob_tract_given_race_2010.parquet
+
+    Examples
+    --------
+    >>> import pyethnicity
+    >>> pyethnicity.bifsg(
+            first_name="cangyuan", last_name="li", zcta=27106, geo_type="zcta"
+        )
+    >>> pyethnicity.bifsg(
+    >>> first_name=["cangyuan", "mark"],
+    >>>     last_name=["li", "luo"],
+    >>>     zcta=[27106, 11106],
+    >>>     geo_type="zcta"
+    >>> )
+    """
+    _bifsg_internal(first_name, last_name, geography, geo_type, is_6cat=True)
 
 
 def _calc_correx(female: int, male: int) -> tuple[float, float]:
