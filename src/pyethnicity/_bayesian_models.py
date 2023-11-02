@@ -371,7 +371,7 @@ def bifsg(
     >>>     geo_type="zcta"
     >>> )
     """
-    _bifsg_internal(first_name, last_name, geography, geo_type, is_6cat=False)
+    return _bifsg_internal(first_name, last_name, geography, geo_type, is_6cat=False)
 
 
 def bifsg6(
@@ -428,7 +428,7 @@ def bifsg6(
     >>>     geo_type="zcta"
     >>> )
     """
-    _bifsg_internal(first_name, last_name, geography, geo_type, is_6cat=True)
+    return _bifsg_internal(first_name, last_name, geography, geo_type, is_6cat=True)
 
 
 def _calc_correx(female: int, male: int) -> tuple[float, float]:
