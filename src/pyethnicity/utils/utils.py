@@ -42,6 +42,15 @@ def _is_null(x: Union[SupportsFloat, SupportsIndex]):
     return math.isnan(x) or x is None
 
 
+def _set_name(x, name: str):
+    try:
+        name = x.name
+    except AttributeError:
+        pass
+
+    return name
+
+
 def _download(path: str):
     r = requests.get(
         f"https://raw.githubusercontent.com/CangyuanLi/pyethnicity/master/src/pyethnicity/data/{path}"

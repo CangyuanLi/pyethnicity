@@ -15,6 +15,7 @@ from .utils.utils import (
     _assert_equal_lengths,
     _download,
     _remove_single_chars,
+    _set_name,
 )
 
 UNWANTED_CHARS = string.digits + string.punctuation + string.whitespace
@@ -59,16 +60,42 @@ class ResourceLoader:
 RESOURCE_LOADER = ResourceLoader()
 
 
-def last_name_join(left: pl.DataFrame, right: pl.DataFrame) -> pl.DataFrame:
-    df = left.join(
-        right.with_columns(is_matched=pl.lit(True)),
+def _last_name_join(left: pl.DataFrame, right: pl.DataFrame) -> pl.DataFrame:
+    # first, join on the last name
+    matched_1 = left.join(
+        right,
         left_on="last_name",
         right_on="name",
-        how="left",
+        how="inner",
     )
-    not_matched = df.filter(~pl.col("is_matched")).filter(
-        pl.col("last_name").str.contains()
+
+    # when there is a compound name, match on the first one
+    not_matched = (
+        left.filter(~pl.col("index").is_in(matched_1["index"]))
+        .filter(pl.col("last_name_raw").str.contains("-"))
+        .with_columns(last_name=pl.col("last_name_raw").str.split("-").list.get(0))
     )
+    matched_2 = not_matched.join(
+        right,
+        left_on="last_name",
+        right_on="name",
+        how="inner",
+    )
+
+    # finally, match on the second part of the compound name
+    not_matched = (
+        left.filter(~pl.col("index").is_in(matched_1["index"]))
+        .filter(~pl.col("index").is_in(matched_2["index"]))
+        .with_columns(last_name=pl.col("last_name_raw").str.split("-").list.get(1))
+    )
+    matched_3 = not_matched.join(
+        right,
+        left_on="last_name",
+        right_on="name",
+        how="inner",
+    )
+
+    return pl.concat([matched_1, matched_2, matched_3], how="vertical")
 
 
 def _remove_chars(expr: pl.Expr) -> pl.Expr:
@@ -139,19 +166,19 @@ def _resolve_geography(geography: Geography, geo_type: GeoType) -> pl.DataFrame:
     if geo_type == "tract":
         geo = _normalize_tract(geography)
         prob_geo_given_race = geo.join(
-            RESOURCE_LOADER.load("prob_tract_given_race_2010"), on="tract", how="left"
+            RESOURCE_LOADER.load("prob_tract_given_race_2010"), on="tract", how="inner"
         )
     elif geo_type == "zcta":
         geo = _normalize_zcta(geography)
         prob_geo_given_race = geo.join(
-            RESOURCE_LOADER.load("prob_zcta_given_race_2010"), on="zcta5", how="left"
+            RESOURCE_LOADER.load("prob_zcta_given_race_2010"), on="zcta5", how="inner"
         )
     elif geo_type == "block_group":
         geo = _normalize_block_group(geography)
         prob_geo_given_race = geo.join(
             RESOURCE_LOADER.load("prob_block_group_given_race_2010"),
             on="block_group",
-            how="left",
+            how="inner",
         )
     else:
         raise ValueError(f"`{geo_type}` is not a valid geography.")
@@ -192,46 +219,8 @@ def _bisg_internal(
         "index"
     )
 
-    prob_race_given_last_name_full = RESOURCE_LOADER.load(
-        prob_race_given_last_name_path
-    )
-
-    # first, join on the last name
-    matched_1 = last_name_cleaned.join(
-        prob_race_given_last_name_full,
-        left_on="last_name",
-        right_on="name",
-        how="inner",
-    )
-
-    # when there is a compound name, match on the first one
-    not_matched = (
-        last_name_cleaned.filter(~pl.col("index").is_in(matched_1["index"]))
-        .filter(pl.col("last_name_raw").str.contains("-"))
-        .with_columns(last_name=pl.col("last_name_raw").str.split("-").list.get(0))
-    )
-    matched_2 = not_matched.join(
-        prob_race_given_last_name_full,
-        left_on="last_name",
-        right_on="name",
-        how="inner",
-    )
-
-    # finally, match on the second part of the compound name
-    not_matched = (
-        last_name_cleaned.filter(~pl.col("index").is_in(matched_1["index"]))
-        .filter(~pl.col("index").is_in(matched_2["index"]))
-        .with_columns(last_name=pl.col("last_name_raw").str.split("-").list.get(1))
-    )
-    matched_3 = not_matched.join(
-        prob_race_given_last_name_full,
-        left_on="last_name",
-        right_on="name",
-        how="inner",
-    )
-
-    prob_race_given_last_name = pl.concat(
-        [matched_1, matched_2, matched_3], how="vertical"
+    prob_race_given_last_name = _last_name_join(
+        last_name_cleaned, RESOURCE_LOADER.load(prob_race_given_last_name_path)
     ).select(races)
 
     prob_geo_given_race = _resolve_geography(raw[geo_type], geo_type).select(races)
@@ -240,9 +229,13 @@ def _bisg_internal(
     bisg_denom = bisg_numer.sum(axis=1)
     bisg_probs = bisg_numer / bisg_denom
 
+    # final bookeeping
+    last_name_col = _set_name(last_name, "last_name")
+    geo_col = _set_name(geography, geo_type)
+
     df = bisg_probs.to_pandas()
-    df.insert(0, "last_name", raw["last_name"])
-    df.insert(1, geo_type, raw[geo_type])
+    df.insert(0, last_name_col, raw["last_name"])
+    df.insert(1, geo_col, raw[geo_type])
 
     return df
 
