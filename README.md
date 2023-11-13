@@ -40,7 +40,7 @@ pip install pyethnicity
 
 ## Running
 
-Pyethnicity exposes several functions. Currently, it only support only tract and ZCTA-level features, although county and state-level features are planned. Each function takes in a scalar or array-like of inputs and returns a pandas DataFrame of the input and the predictions. Note that pyethnicity expects the census tract to be in the format of 2-digit state FIPS, 3-digit county FIPS, and 6-digit tract.
+Pyethnicity exposes several functions. It supports block group, tract, and zip code level features. Each function takes in a scalar or array-like of inputs and returns a pandas DataFrame of the input and the predictions. Note that pyethnicity expects the census tract to be in the format of 2-digit state FIPS, 3-digit county FIPS, and 6-digit tract.
 
 ```python
 import pyethnicity
@@ -58,5 +58,8 @@ pyethnicity.predict_race(first_name, last_name, zcta, geo_type="zcta")
 ```
 
 # TODO:
+
+- Following the CFPB, when a compound name doesn't match, try to match on both parts of the name.
+- Re-train model to support Native American and Multiracial.
 
 This package is still in active development. Please report any issues!
