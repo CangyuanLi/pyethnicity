@@ -27,12 +27,12 @@ Resource = Literal[
     "prob_race_given_zcta_2010",
     "prob_tract_given_race_2010",
     "prob_race_given_tract_2010",
+    "prob_block_group_given_race_2010",
+    "prob_race_given_block_group_2010",
     "ssa",
     "6cat/prob_race_given_first_name",
     "6cat/prob_first_name_given_race",
     "6cat/prob_race_given_last_name",
-    "6cat/prob_race_given_zcta_2010",
-    "6cat/prob_race_given_tract_2010",
 ]
 
 
