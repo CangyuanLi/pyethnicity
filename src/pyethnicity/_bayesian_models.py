@@ -108,6 +108,19 @@ def _normalize_tract(tract: Geography, col_name: str = "tract") -> pl.DataFrame:
     )
 
 
+def _normalize_block_group(
+    block_group: Geography, col_name: str = "block_group"
+) -> pl.DataFrame:
+    if isinstance(block_group, str):
+        block_group = [block_group]
+
+    return (
+        pl.LazyFrame({col_name: block_group})
+        .with_columns(pl.col(col_name).cast(str).str.zfill(12))
+        .collect()
+    )
+
+
 def _resolve_geography(geography: Geography, geo_type: GeoType) -> pl.DataFrame:
     if geo_type == "tract":
         geo = _normalize_tract(geography)
@@ -118,6 +131,13 @@ def _resolve_geography(geography: Geography, geo_type: GeoType) -> pl.DataFrame:
         geo = _normalize_zcta(geography)
         prob_geo_given_race = geo.join(
             RESOURCE_LOADER.load("prob_zcta_given_race_2010"), on="zcta5", how="left"
+        )
+    elif geo_type == "block_group":
+        geo = _normalize_block_group(geography)
+        prob_geo_given_race = geo.join(
+            RESOURCE_LOADER.load("prob_block_group_given_race_2010"),
+            on="block_group",
+            how="left",
         )
     else:
         raise ValueError(f"`{geo_type}` is not a valid geography.")
@@ -209,6 +229,7 @@ def bisg(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFra
         - data/distributions/prob_race_given_last_name.parquet
         - data/distributions/prob_zcta_given_race_2010.parquet
         - data/distributions/prob_tract_given_race_2010.parquet
+        - data/distributions/prob_block_group_given_race_2010.parquet
 
     Examples
     --------
@@ -252,6 +273,7 @@ def bisg6(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFr
         - data/distributions/6cat/prob_race_given_last_name.parquet
         - data/distributions/prob_zcta_given_race_2010.parquet
         - data/distributions/prob_tract_given_race_2010.parquet
+        - data/distributions/prob_block_group_given_race_2010.parquet
 
     Examples
     --------
@@ -357,6 +379,7 @@ def bifsg(
         - data/distributions/prob_race_given_last_name.parquet
         - data/distributions/prob_zcta_given_race_2010.parquet
         - data/distributions/prob_tract_given_race_2010.parquet
+        - data/distributions/prob_block_group_given_race_2010.parquet
 
     Examples
     --------
@@ -414,6 +437,7 @@ def bifsg6(
         - data/distributions/6cat/prob_race_given_last_name.parquet
         - data/distributions/prob_zcta_given_race_2010.parquet
         - data/distributions/prob_tract_given_race_2010.parquet
+        - data/distributions/prob_block_group_given_race_2010.parquet
 
     Examples
     --------
