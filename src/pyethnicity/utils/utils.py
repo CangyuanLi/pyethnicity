@@ -16,7 +16,7 @@ def _assert_equal_lengths(*inputs: Union[object, ArrayLike]):
     lengths = []
 
     for input in inputs:
-        if not isinstance(input, ArrayLike) or isinstance(input, str):
+        if not hasattr(input, "__len__") or isinstance(input, str):
             input = [input]
 
         lengths.append(len(input))
