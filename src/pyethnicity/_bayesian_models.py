@@ -97,22 +97,25 @@ def _remove_chars(expr: pl.Expr) -> pl.Expr:
     return expr
 
 
-def _normalize_name(name: Name, col_name: str) -> pl.LazyFrame:
+def _normalize_name(expr: pl.Expr) -> pl.Expr:
     return (
-        pl.LazyFrame({col_name: name})
-        .with_columns(
-            pl.col(col_name)
-            .str.to_uppercase()
-            .str.replace_all(r"\s?J\.*?R\.*\s*?$", "")
-            .str.replace_all(r"\s?S\.*?R\.*\s*?$", "")
-            .str.replace_all(r"\s?III\s*?$", "")
-            .str.replace_all(r"\s?IV\s*?$", "")
-        )
-        .with_columns(
-            pl.col(col_name).alias(f"{col_name}_raw"),
-            pl.col(col_name).pipe(_remove_chars).map_elements(_remove_single_chars),
-        )
+        expr.str.to_uppercase()
+        .str.replace_all(r"\s?J\.*?R\.*\s*?$", "")
+        .str.replace_all(r"\s?S\.*?R\.*\s*?$", "")
+        .str.replace_all(r"\s?III\s*?$", "")
+        .str.replace_all(r"\s?IV\s*?$", "")
+        .pipe(_remove_chars)
+        .map_elements(_remove_single_chars)
     )
+
+
+def _split_name(lf: pl.LazyFrame, col_name: str) -> pl.LazyFrame:
+    return lf.with_columns(
+        pl.col(col_name)
+        .str.split_exact("-", 1)
+        .struct.rename_fields([f"{col_name}_1", f"{col_name}_2"])
+        .alias("fields")
+    ).unnest("fields")
 
 
 def _normalize_zcta(zcta: Geography, col_name: str = "zcta5") -> pl.LazyFrame:
@@ -187,28 +190,26 @@ def _bisg_internal(
     _assert_equal_lengths(last_name, geography)
 
     raw = (
-        pl.LazyFrame({"last_name": last_name, geo_type: geography})
+        pl.LazyFrame({"last_name_raw": last_name, geo_type: geography})
         .unique()
         .with_row_count("index")
+        .pipe(_split_name, "last_name_raw")
+        .with_columns(
+            pl.col("last_name_raw", "last_name_raw_1", "last_name_raw_2")
+            .pipe(_normalize_name)
+            .map_alias(lambda x: x.replace("_raw", "_clean"))
+        )
         .collect()
     )
 
-    last_name_cleaned = (
-        _normalize_name(raw["last_name"], "last_name")
-        .with_columns(
-            pl.col("last_name_raw")
-            .str.split_exact("-", 1)
-            .struct.rename_fields(["compound1", "compound2"])
-            .alias("fields")
-        )
-        .unnest("fields")
-    )
+    clean_last_name_cols = ["last_name_clean", "last_name_clean_1", "last_name_clean_2"]
+    last_name_cleaned = raw.select(clean_last_name_cols)
 
     prob_race_given_last_name = (
         _waterfall_join(
-            last_name_cleaned,
+            last_name_cleaned.lazy(),
             RESOURCE_LOADER.load(prob_race_given_last_name_path),
-            left_on=["last_name", "compound1", "compound2"],
+            left_on=clean_last_name_cols,
             right_on="name",
             how="left",
         )
@@ -229,7 +230,7 @@ def _bisg_internal(
     geo_col = _set_name(geography, geo_type)
 
     df = bisg_probs.to_pandas()
-    df.insert(0, last_name_col, raw["last_name"])
+    df.insert(0, last_name_col, raw["last_name_raw"])
     df.insert(1, geo_col, raw[geo_type])
 
     return df
@@ -344,38 +345,55 @@ def _bifsg_internal(
 
     _assert_equal_lengths(first_name, last_name, geography)
 
-    raw = pl.DataFrame(
-        {"first_name": first_name, "last_name": last_name, geo_type: geography}
-    ).unique()
+    raw = (
+        pl.LazyFrame(
+            {
+                "first_name_raw": first_name,
+                "last_name_raw": last_name,
+                geo_type: geography,
+            }
+        )
+        .drop_nulls()
+        .unique()
+        .with_row_count("index")
+        .pipe(_split_name, "last_name_raw")
+        .with_columns(
+            pl.col(
+                "last_name_raw", "last_name_raw_1", "last_name_raw_2", "first_name_raw"
+            )
+            .pipe(_normalize_name)
+            .map_alias(lambda x: x.replace("_raw", "_clean")),
+        )
+        .collect()
+    )
 
-    first_name_cleaned = _normalize_name(first_name, "first_name")
-    last_name_cleaned = _normalize_name(last_name, "last_name")
+    first_name_cleaned = raw.select("first_name_clean")
 
-    df = pl.concat(
-        [first_name_cleaned, last_name_cleaned], how="horizontal"
-    ).with_row_count("index")
+    clean_last_name_cols = ["last_name_clean", "last_name_clean_1", "last_name_clean_2"]
+    last_name_cleaned = raw.select(clean_last_name_cols)
 
-    prob_race_given_last_name = _last_name_join(
-        last_name_cleaned, RESOURCE_LOADER.load(prob_race_given_last_name_path)
-    ).select(races)
+    prob_geo_given_race = (
+        _resolve_geography(raw[geo_type], geo_type).select(races).collect()
+    )
 
-    df = pl.concat([first_name_cleaned, last_name_cleaned], how="horizontal")
+    prob_race_given_last_name = (
+        _waterfall_join(
+            last_name_cleaned.lazy(),
+            RESOURCE_LOADER.load(prob_race_given_last_name_path),
+            left_on=clean_last_name_cols,
+            right_on="name",
+            how="left",
+        )
+        .select(races)
+        .collect()
+    )
 
-    prob_first_name_given_race: pl.DataFrame = df.join(
-        RESOURCE_LOADER.load(prob_first_name_given_race_path),
-        left_on="first_name",
+    prob_first_name_given_race: pl.DataFrame = first_name_cleaned.join(
+        RESOURCE_LOADER.load(prob_first_name_given_race_path).collect(),
+        left_on="first_name_clean",
         right_on="name",
         how="left",
     ).select(races)
-
-    prob_race_given_last_name: pl.DataFrame = df.join(
-        RESOURCE_LOADER.load(prob_race_given_last_name_path),
-        left_on="last_name",
-        right_on="name",
-        how="left",
-    ).select(races)
-
-    prob_geo_given_race = _resolve_geography(geography, geo_type).select(races)
 
     bifsg_numer = (
         prob_first_name_given_race * prob_race_given_last_name * prob_geo_given_race
@@ -383,10 +401,15 @@ def _bifsg_internal(
     bifsg_denom = bifsg_numer.sum(axis=1)
     bifsg_probs = bifsg_numer / bifsg_denom
 
+    # final bookeeping
+    first_name_col = _set_name(first_name, "first_name")
+    last_name_col = _set_name(last_name, "last_name")
+    geo_col = _set_name(geography, geo_type)
+
     df: pd.DataFrame = bifsg_probs.to_pandas()
-    df.insert(0, "first_name", first_name)
-    df.insert(1, "last_name", last_name)
-    df.insert(2, geo_type, geography)
+    df.insert(0, first_name_col, raw["first_name_raw"])
+    df.insert(1, last_name_col, raw["last_name_raw"])
+    df.insert(2, geo_col, raw[geo_type])
 
     return df
 
