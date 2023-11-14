@@ -105,7 +105,7 @@ def _normalize_name(expr: pl.Expr) -> pl.Expr:
         .str.replace_all(r"\s?III\s*?$", "")
         .str.replace_all(r"\s?IV\s*?$", "")
         .pipe(_remove_chars)
-        .map_elements(_remove_single_chars)
+        .map_elements(_remove_single_chars, return_dtype=str)
     )
 
 
@@ -197,7 +197,7 @@ def _bisg_internal(
         .with_columns(
             pl.col("last_name_raw", "last_name_raw_1", "last_name_raw_2")
             .pipe(_normalize_name)
-            .map_alias(lambda x: x.replace("_raw", "_clean"))
+            .name.map(lambda x: x.replace("_raw", "_clean"))
         )
         .collect()
     )
@@ -362,7 +362,7 @@ def _bifsg_internal(
                 "last_name_raw", "last_name_raw_1", "last_name_raw_2", "first_name_raw"
             )
             .pipe(_normalize_name)
-            .map_alias(lambda x: x.replace("_raw", "_clean")),
+            .name.map(lambda x: x.replace("_raw", "_clean")),
         )
         .collect()
     )
