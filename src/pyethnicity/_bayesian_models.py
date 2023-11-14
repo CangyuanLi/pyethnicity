@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import string
 import typing
+from collections.abc import Iterable
 from typing import Literal, Optional
 
 import pandas as pd
@@ -39,17 +40,17 @@ Resource = Literal[
 
 class ResourceLoader:
     def __init__(self):
-        self._resources: dict[Resource, Optional[pl.DataFrame]] = {
+        self._resources: dict[Resource, Optional[pl.LazyFrame]] = {
             k: None for k in typing.get_args(Resource)
         }
 
-    def load(self, resource: Resource) -> pl.DataFrame:
+    def load(self, resource: Resource) -> pl.LazyFrame:
         if self._resources[resource] is None:
             file = f"{resource}.parquet"
             if not (DIST_PATH / file).exists():
                 _download(f"distributions/{file}")
 
-            self._resources[resource] = pl.read_parquet(DIST_PATH / file)
+            self._resources[resource] = pl.scan_parquet(DIST_PATH / file)
 
         data = self._resources[resource]
         assert data is not None
@@ -59,43 +60,34 @@ class ResourceLoader:
 
 RESOURCE_LOADER = ResourceLoader()
 
+WaterfallJoinType = Literal["left", "inner"]
 
-def _last_name_join(left: pl.DataFrame, right: pl.DataFrame) -> pl.DataFrame:
-    # first, join on the last name
-    matched_1 = left.join(
-        right,
-        left_on="last_name",
-        right_on="name",
-        how="inner",
-    )
 
-    # when there is a compound name, match on the first one
-    not_matched = (
-        left.filter(~pl.col("index").is_in(matched_1["index"]))
-        .filter(pl.col("last_name_raw").str.contains("-"))
-        .with_columns(last_name=pl.col("last_name_raw").str.split("-").list.get(0))
-    )
-    matched_2 = not_matched.join(
-        right,
-        left_on="last_name",
-        right_on="name",
-        how="inner",
-    )
+def _waterfall_join(
+    left: pl.LazyFrame,
+    right: pl.LazyFrame,
+    left_on: Iterable[str],
+    right_on: str,
+    how: str = "left",
+) -> pl.LazyFrame:
+    left = left.with_row_count("index")
+    seen: list[int] = []
+    outputs: list[pl.LazyFrame] = []
 
-    # finally, match on the second part of the compound name
-    not_matched = (
-        left.filter(~pl.col("index").is_in(matched_1["index"]))
-        .filter(~pl.col("index").is_in(matched_2["index"]))
-        .with_columns(last_name=pl.col("last_name_raw").str.split("-").list.get(1))
-    )
-    matched_3 = not_matched.join(
-        right,
-        left_on="last_name",
-        right_on="name",
-        how="inner",
-    )
+    for col in left_on:
+        output = left.filter(~pl.col("index").is_in(seen)).join(
+            right, left_on=col, right_on=right_on, how="inner"
+        )
 
-    return pl.concat([matched_1, matched_2, matched_3], how="vertical")
+        seen.extend(
+            output.select("index").lazy().collect().get_column("index").to_list()
+        )
+        outputs.append(output)
+
+    if how == "left":
+        outputs.append(left.filter(~pl.col("index").is_in(seen)))
+
+    return pl.concat(outputs, how="diagonal").sort("index").drop("index")
 
 
 def _remove_chars(expr: pl.Expr) -> pl.Expr:
@@ -105,10 +97,7 @@ def _remove_chars(expr: pl.Expr) -> pl.Expr:
     return expr
 
 
-def _normalize_name(name: Name, col_name: str) -> pl.DataFrame:
-    if isinstance(name, str):
-        name = [name]
-
+def _normalize_name(name: Name, col_name: str) -> pl.LazyFrame:
     return (
         pl.LazyFrame({col_name: name})
         .with_columns(
@@ -123,62 +112,46 @@ def _normalize_name(name: Name, col_name: str) -> pl.DataFrame:
             pl.col(col_name).alias(f"{col_name}_raw"),
             pl.col(col_name).pipe(_remove_chars).map_elements(_remove_single_chars),
         )
-        .collect()
     )
 
 
-def _normalize_zcta(zcta: Geography, col_name: str = "zcta5") -> pl.DataFrame:
-    if isinstance(zcta, str):
-        zcta = [zcta]
-
-    return (
-        pl.LazyFrame({col_name: zcta})
-        .with_columns(pl.col(col_name).cast(str).str.zfill(5))
-        .collect()
+def _normalize_zcta(zcta: Geography, col_name: str = "zcta5") -> pl.LazyFrame:
+    return pl.LazyFrame({col_name: zcta}).with_columns(
+        pl.col(col_name).cast(str).str.zfill(5)
     )
 
 
-def _normalize_tract(tract: Geography, col_name: str = "tract") -> pl.DataFrame:
-    if isinstance(tract, str):
-        tract = [tract]
-
-    return (
-        pl.LazyFrame({col_name: tract})
-        .with_columns(pl.col(col_name).cast(str).str.zfill(11))
-        .collect()
+def _normalize_tract(tract: Geography, col_name: str = "tract") -> pl.LazyFrame:
+    return pl.LazyFrame({col_name: tract}).with_columns(
+        pl.col(col_name).cast(str).str.zfill(11)
     )
 
 
 def _normalize_block_group(
     block_group: Geography, col_name: str = "block_group"
-) -> pl.DataFrame:
-    if isinstance(block_group, str):
-        block_group = [block_group]
-
-    return (
-        pl.LazyFrame({col_name: block_group})
-        .with_columns(pl.col(col_name).cast(str).str.zfill(12))
-        .collect()
+) -> pl.LazyFrame:
+    return pl.LazyFrame({col_name: block_group}).with_columns(
+        pl.col(col_name).cast(str).str.zfill(12)
     )
 
 
-def _resolve_geography(geography: Geography, geo_type: GeoType) -> pl.DataFrame:
+def _resolve_geography(geography: Geography, geo_type: GeoType) -> pl.LazyFrame:
     if geo_type == "tract":
         geo = _normalize_tract(geography)
         prob_geo_given_race = geo.join(
-            RESOURCE_LOADER.load("prob_tract_given_race_2010"), on="tract", how="inner"
+            RESOURCE_LOADER.load("prob_tract_given_race_2010"), on="tract", how="left"
         )
     elif geo_type == "zcta":
         geo = _normalize_zcta(geography)
         prob_geo_given_race = geo.join(
-            RESOURCE_LOADER.load("prob_zcta_given_race_2010"), on="zcta5", how="inner"
+            RESOURCE_LOADER.load("prob_zcta_given_race_2010"), on="zcta5", how="left"
         )
     elif geo_type == "block_group":
         geo = _normalize_block_group(geography)
         prob_geo_given_race = geo.join(
             RESOURCE_LOADER.load("prob_block_group_given_race_2010"),
             on="block_group",
-            how="inner",
+            how="left",
         )
     else:
         raise ValueError(f"`{geo_type}` is not a valid geography.")
@@ -213,17 +186,39 @@ def _bisg_internal(
 
     _assert_equal_lengths(last_name, geography)
 
-    raw = pl.DataFrame({"last_name": last_name, geo_type: geography}).unique()
-
-    last_name_cleaned = _normalize_name(raw["last_name"], "last_name").with_row_count(
-        "index"
+    raw = (
+        pl.LazyFrame({"last_name": last_name, geo_type: geography})
+        .unique()
+        .with_row_count("index")
+        .collect()
     )
 
-    prob_race_given_last_name = _last_name_join(
-        last_name_cleaned, RESOURCE_LOADER.load(prob_race_given_last_name_path)
-    ).select(races)
+    last_name_cleaned = (
+        _normalize_name(raw["last_name"], "last_name")
+        .with_columns(
+            pl.col("last_name_raw")
+            .str.split_exact("-", 1)
+            .struct.rename_fields(["compound1", "compound2"])
+            .alias("fields")
+        )
+        .unnest("fields")
+    )
 
-    prob_geo_given_race = _resolve_geography(raw[geo_type], geo_type).select(races)
+    prob_race_given_last_name = (
+        _waterfall_join(
+            last_name_cleaned,
+            RESOURCE_LOADER.load(prob_race_given_last_name_path),
+            left_on=["last_name", "compound1", "compound2"],
+            right_on="name",
+            how="left",
+        )
+        .select(races)
+        .collect()
+    )
+
+    prob_geo_given_race = (
+        _resolve_geography(raw[geo_type], geo_type).select(races).collect()
+    )
 
     bisg_numer = prob_race_given_last_name * prob_geo_given_race
     bisg_denom = bisg_numer.sum(axis=1)
@@ -349,8 +344,20 @@ def _bifsg_internal(
 
     _assert_equal_lengths(first_name, last_name, geography)
 
+    raw = pl.DataFrame(
+        {"first_name": first_name, "last_name": last_name, geo_type: geography}
+    ).unique()
+
     first_name_cleaned = _normalize_name(first_name, "first_name")
     last_name_cleaned = _normalize_name(last_name, "last_name")
+
+    df = pl.concat(
+        [first_name_cleaned, last_name_cleaned], how="horizontal"
+    ).with_row_count("index")
+
+    prob_race_given_last_name = _last_name_join(
+        last_name_cleaned, RESOURCE_LOADER.load(prob_race_given_last_name_path)
+    ).select(races)
 
     df = pl.concat([first_name_cleaned, last_name_cleaned], how="horizontal")
 
