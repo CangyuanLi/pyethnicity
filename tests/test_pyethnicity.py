@@ -1,7 +1,10 @@
 import math
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
 import polars as pl
+import surgeo
 
 import pyethnicity
 
@@ -11,6 +14,15 @@ ZCTA = 11106
 TRACT = 72153750502
 RACES = ["asian", "black", "hispanic", "white"]
 
+PPP = (
+    pl.scan_parquet(BASE_PATH / "ppp_test.parquet")
+    .select("first_name", "last_name", "zcta")
+    .with_columns(pl.col("first_name", "last_name").str.to_uppercase())
+    .collect()
+    .sample(10_000)
+    .to_pandas()
+)
+
 
 def arr_equal(arr1, arr2):
     for i, j in zip(arr1, arr2):
@@ -18,6 +30,32 @@ def arr_equal(arr1, arr2):
             return False
 
     return True
+
+
+# def test_bisg6():
+#     key = ["last_name", "zcta"]
+#     surgeo_preds = (
+#         surgeo.SurgeoModel()
+#         .get_probabilities(PPP["last_name"], PPP["zcta"])
+#         .rename(columns={"name": "last_name", "zcta5": "zcta"})
+#     )
+#     pyeth_preds = (
+#         pyethnicity.bisg(PPP["last_name"], PPP["zcta"], geo_type="zcta")
+#         .drop_duplicates(key)
+#         .sort_values(key)
+#     )
+
+#     res = pd.merge(pyeth_preds, surgeo_preds, on=["last_name", "zcta"], how="inner")
+#     res["diff"] = res["black_x"] - res["black_y"]
+#     res[["last_name", "zcta", "black_x", "black_y", "diff"]].to_csv("temp.csv")
+
+#     assert np.isclose(
+#         res["black_x"].to_numpy(), res["black_y"].to_numpy(), equal_nan=True
+#     ).all()
+
+
+# def test_bifsg6():
+#     pass
 
 
 def test_bisg():

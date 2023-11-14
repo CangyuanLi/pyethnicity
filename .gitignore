@@ -150,3 +150,5 @@ cython_debug/
 
 **/*-checkpoint*
 **/temp.py
+
+tests/ppp_test.parquet
