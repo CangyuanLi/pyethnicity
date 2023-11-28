@@ -25,12 +25,12 @@ Resource = Literal[
     "prob_race_given_first_name",
     "prob_first_name_given_race",
     "prob_race_given_last_name",
-    "prob_zcta_given_race_2010",
-    "prob_race_given_zcta_2010",
-    "prob_tract_given_race_2010",
-    "prob_race_given_tract_2010",
-    "prob_block_group_given_race_2010",
-    "prob_race_given_block_group_2010",
+    "prob_zcta_given_race_2020",
+    "prob_race_given_zcta_2020",
+    "prob_tract_given_race_2020",
+    "prob_race_given_tract_2020",
+    "prob_block_group_given_race_2020",
+    "prob_race_given_block_group_2020",
     "ssa",
     "6cat/prob_race_given_first_name",
     "6cat/prob_first_name_given_race",
@@ -142,17 +142,17 @@ def _resolve_geography(geography: Geography, geo_type: GeoType) -> pl.LazyFrame:
     if geo_type == "tract":
         geo = _normalize_tract(geography)
         prob_geo_given_race = geo.join(
-            RESOURCE_LOADER.load("prob_tract_given_race_2010"), on="tract", how="left"
+            RESOURCE_LOADER.load("prob_tract_given_race_2020"), on="tract", how="left"
         )
     elif geo_type == "zcta":
         geo = _normalize_zcta(geography)
         prob_geo_given_race = geo.join(
-            RESOURCE_LOADER.load("prob_zcta_given_race_2010"), on="zcta5", how="left"
+            RESOURCE_LOADER.load("prob_zcta_given_race_2020"), on="zcta5", how="left"
         )
     elif geo_type == "block_group":
         geo = _normalize_block_group(geography)
         prob_geo_given_race = geo.join(
-            RESOURCE_LOADER.load("prob_block_group_given_race_2010"),
+            RESOURCE_LOADER.load("prob_block_group_given_race_2020"),
             on="block_group",
             how="left",
         )
@@ -165,7 +165,7 @@ def _resolve_geography(geography: Geography, geo_type: GeoType) -> pl.LazyFrame:
 def _bng(
     prob_race_given_name: pl.DataFrame, geography: Geography, geo_type: GeoType
 ) -> pd.DataFrame:
-    prob_geo_given_race = _resolve_geography(geography, geo_type)
+    prob_geo_given_race = _resolve_geography(geography, geo_type).collect()
 
     numer = prob_race_given_name.select(RACES) * prob_geo_given_race.select(RACES)
     denom = numer.sum(axis=1)
@@ -269,9 +269,9 @@ def bisg(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFra
     -----
     The data files can be found in:
         - data/distributions/prob_race_given_last_name.parquet
-        - data/distributions/prob_zcta_given_race_2010.parquet
-        - data/distributions/prob_tract_given_race_2010.parquet
-        - data/distributions/prob_block_group_given_race_2010.parquet
+        - data/distributions/prob_zcta_given_race_2020.parquet
+        - data/distributions/prob_tract_given_race_2020.parquet
+        - data/distributions/prob_block_group_given_race_2020.parquet
 
     Examples
     --------
@@ -313,9 +313,9 @@ def bisg6(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFr
     -----
     The data files can be found in:
         - data/distributions/6cat/prob_race_given_last_name.parquet
-        - data/distributions/prob_zcta_given_race_2010.parquet
-        - data/distributions/prob_tract_given_race_2010.parquet
-        - data/distributions/prob_block_group_given_race_2010.parquet
+        - data/distributions/prob_zcta_given_race_2020.parquet
+        - data/distributions/prob_tract_given_race_2020.parquet
+        - data/distributions/prob_block_group_given_race_2020.parquet
 
     Examples
     --------
@@ -453,9 +453,9 @@ def bifsg(
     The data files can be found in:
         - data/distributions/prob_first_name_given_race.parquet
         - data/distributions/prob_race_given_last_name.parquet
-        - data/distributions/prob_zcta_given_race_2010.parquet
-        - data/distributions/prob_tract_given_race_2010.parquet
-        - data/distributions/prob_block_group_given_race_2010.parquet
+        - data/distributions/prob_zcta_given_race_2020.parquet
+        - data/distributions/prob_tract_given_race_2020.parquet
+        - data/distributions/prob_block_group_given_race_2020.parquet
 
     Examples
     --------
@@ -511,9 +511,9 @@ def bifsg6(
     The data files can be found in:
         - data/distributions/6cat/prob_first_name_given_race.parquet
         - data/distributions/6cat/prob_race_given_last_name.parquet
-        - data/distributions/prob_zcta_given_race_2010.parquet
-        - data/distributions/prob_tract_given_race_2010.parquet
-        - data/distributions/prob_block_group_given_race_2010.parquet
+        - data/distributions/prob_zcta_given_race_2020.parquet
+        - data/distributions/prob_tract_given_race_2020.parquet
+        - data/distributions/prob_block_group_given_race_2020.parquet
 
     Examples
     --------
