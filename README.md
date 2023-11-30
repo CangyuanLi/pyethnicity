@@ -10,21 +10,7 @@
 
 ## What is it?
 
-**pyethnicity** is a Python package to predict race from name and location. To the best of the author's knowledge, it outperforms all existing open-source models. It does this by training a Bidirectional LSTM on the largest, most comprehensive dataset of name and self-reported race thus far. It uses voter registration data from all 50 states. Additionally, it incorporates location features and improved versions of Bayesian Improved Surname Geocoding and Bayesian Improved Firstname Surname Geocoding to form an ensemble model that achieves up to 36.8% higher F1 scores than the next-best performing model.
-
-**pyethnicity**
-
-![](https://github.com/CangyuanLi/pyethnicity/raw/master/assets/ensemble_stats.png)
-
-**rethnicity**
-
-![](https://github.com/CangyuanLi/pyethnicity/raw/master/assets/reth_stats.png)
-
-**ethnicolr**
-
-![](https://github.com/CangyuanLi/pyethnicity/raw/master/assets/eth_stats.png)
-
-Please see the correpsonding paper ["Can We Trust Race Prediction?"](https://github.com/CangyuanLi/pyethnicity/blob/master/paper.pdf) for more details.
+**pyethnicity** is a Python package to predict race from name and location and sex from first name. To the best of the author's knowledge, it outperforms all existing open-source models. It does this by training a Bidirectional LSTM on the largest, most comprehensive dataset of name and self-reported race thus far. It uses voter registration data from all 50 states. Additionally, it incorporates location features and improved versions of Bayesian Improved Surname Geocoding and Bayesian Improved Firstname Surname Geocoding to form an ensemble model that achieves up to 36.8% higher F1 scores than the next-best performing model. Finally, it provides CFPB-compliant and up-to-date versions of BISG and BIFSG.
 
 # Usage:
 
@@ -40,7 +26,7 @@ pip install pyethnicity
 
 ## Running
 
-Pyethnicity exposes several functions. It supports block group, tract, and zip code level features. Each function takes in a scalar or array-like of inputs and returns a pandas DataFrame of the input and the predictions. Note that pyethnicity expects the census tract to be in the format of 2-digit state FIPS, 3-digit county FIPS, and 6-digit tract.
+Pyethnicity exposes several functions. It supports block group, tract, and zip code level features. Each function takes in a scalar or array-like of inputs and returns a polars DataFrame of the input and the predictions.
 
 ```python
 import pyethnicity
@@ -50,16 +36,33 @@ tract = 72153750502
 first_name = "cangyuan"
 last_name = "luo"
 
-pyethnicity.bisg(last_name, zcta, geo_type="zcta")
-pyethnicity.bifsg(first_name, last_name, tract, geo_type="tract")
+pyethnicity.bisg(last_name, zcta=zcta)
+pyethnicity.bifsg(first_name, last_name, zcta=zcta, tract=tract)
 pyethnicity.predict_race_fl(first_name, last_name)
-pyethnicity.predict_race_flg(first_name, last_name, tract, geo_type="tract")
-pyethnicity.predict_race(first_name, last_name, zcta, geo_type="zcta")
+pyethnicity.predict_race_flg(first_name, last_name, tract=tract)
+pyethnicity.predict_race(first_name, last_name, zcta=zcta)
 ```
+
+
+## Performance
+
+**pyethnicity**
+
+![](https://github.com/CangyuanLi/pyethnicity/raw/master/assets/ensemble_stats.png)
+
+**rethnicity**
+
+![](https://github.com/CangyuanLi/pyethnicity/raw/master/assets/reth_stats.png)
+
+**ethnicolr**
+
+![](https://github.com/CangyuanLi/pyethnicity/raw/master/assets/eth_stats.png)
+
+Please see the correpsonding paper ["Can We Trust Race Prediction?"](https://github.com/CangyuanLi/pyethnicity/blob/master/paper.pdf) for more details.
+
 
 # TODO:
 
-- Following the CFPB, when a compound name doesn't match, try to match on both parts of the name.
 - Re-train model to support Native American and Multiracial.
 
 This package is still in active development. Please report any issues!
