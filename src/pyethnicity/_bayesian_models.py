@@ -7,6 +7,7 @@ from typing import Literal, Optional
 
 import pandas as pd
 import polars as pl
+import polars.selectors as cs
 
 from .utils.paths import DIST_PATH
 from .utils.types import Geography, GeoType, Name, Year
@@ -88,6 +89,26 @@ def _waterfall_join(
         outputs.append(left.filter(~pl.col("index").is_in(seen)))
 
     return pl.concat(outputs, how="diagonal").sort("index").drop("index")
+
+
+def _waterfall_fill(exprs: pl.Expr) -> pl.Expr:
+    def func(acc: pl.Expr, x: pl.Expr):
+        return pl.when(acc.is_null()).then(x).otherwise(acc)
+
+    return pl.reduce(function=func, exprs=exprs)
+
+
+def _sort_geo_cols(cols: tuple[str]) -> list[str]:
+    new_order = []
+    for col in cols:
+        if "block_group" in col:
+            new_order.append(0)
+        elif "tract" in col:
+            new_order.append(1)
+        elif "zcta" in col:
+            new_order.append(2)
+
+    return [cols[i] for i in new_order]
 
 
 def _remove_chars(expr: pl.Expr) -> pl.Expr:
@@ -178,8 +199,13 @@ def _bng(
 
 
 def _bisg_internal(
-    last_name: Name, geography: Geography, geo_type: GeoType, is_6cat: bool
-) -> pd.DataFrame:
+    last_name: Name,
+    zcta: Optional[Geography],
+    tract: Optional[Geography],
+    block_group: Optional[Geography],
+    drop_intermediate: bool,
+    is_6cat: bool,
+) -> pl.DataFrame:
     if is_6cat:
         races = RACES_6
         prob_race_given_last_name_path = "6cat/prob_race_given_last_name"
@@ -187,10 +213,27 @@ def _bisg_internal(
         races = RACES
         prob_race_given_last_name_path = "prob_race_given_last_name"
 
-    _assert_equal_lengths(last_name, geography)
+    name_mapper = {
+        "last_name": _set_name(last_name, "last_name"),
+        "zcta": _set_name(zcta, "zcta"),
+        "tract": _set_name(tract, "tract"),
+        "block_group": _set_name(block_group, "block_group"),
+    }
+
+    data = {"zcta": zcta, "tract": tract, "block_group": block_group}
+    data = {k: v for k, v in data.items() if v is not None}
+
+    if not data:
+        raise ValueError("At least one geography must be specified.")
+
+    valid_geo_types = list(data.keys())
+
+    data["last_name_raw"] = last_name
 
     raw = (
-        pl.LazyFrame({"last_name_raw": last_name, geo_type: geography})
+        pl.LazyFrame(data)
+        .drop_nulls(subset=["last_name_raw"])
+        .filter(~pl.all_horizontal(pl.col(valid_geo_types).is_null()))
         .unique()
         .with_row_count("index")
         .pipe(_split_name, "last_name_raw")
@@ -217,26 +260,45 @@ def _bisg_internal(
         .collect()
     )
 
-    prob_geo_given_race = (
-        _resolve_geography(raw[geo_type], geo_type).select(races).collect()
-    )
+    probs = []
+    for geo_type in valid_geo_types:
+        prob_geo_given_race = (
+            _resolve_geography(raw[geo_type], geo_type).select(races).collect()
+        )
 
-    bisg_numer = prob_race_given_last_name * prob_geo_given_race
-    bisg_denom = bisg_numer.sum(axis=1)
-    bisg_probs = bisg_numer / bisg_denom
+        bisg_numer = prob_race_given_last_name * prob_geo_given_race
+        bisg_denom = bisg_numer.sum_horizontal()
+        bisg_probs = bisg_numer / bisg_denom
+
+        probs.append(
+            bisg_probs.select(pl.col(races).name.map(lambda c: f"{geo_type}_{c}"))
+        )
+
+    df: pl.DataFrame = pl.concat(probs, how="horizontal")
+
+    for race in races:
+        cols = _sort_geo_cols(cs.expand_selector(df, cs.ends_with(race)))
+        df = df.with_columns(_waterfall_fill(cols).alias(race))
+
+    if drop_intermediate:
+        df = df.drop(cs.contains(valid_geo_types))
 
     # final bookeeping
-    last_name_col = _set_name(last_name, "last_name")
-    geo_col = _set_name(geography, geo_type)
+    df.insert_column(0, raw["last_name_raw"].rename(name_mapper["last_name"]))
 
-    df = bisg_probs.to_pandas()
-    df.insert(0, last_name_col, raw["last_name_raw"])
-    df.insert(1, geo_col, raw[geo_type])
+    for idx, geo_type in enumerate(valid_geo_types, start=1):
+        df.insert_column(idx, raw[geo_type].rename(name_mapper[geo_type]))
 
     return df
 
 
-def bisg(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFrame:
+def bisg(
+    last_name: Name,
+    zcta: Optional[Geography] = None,
+    tract: Optional[Geography] = None,
+    block_group: Optional[Geography] = None,
+    drop_intermediate: bool = True,
+) -> pd.DataFrame:
     r"""Implements Bayesian Improved Surname Geocoding (BISG), developed by
     Elliot et. al (2009) https://link.springer.com/article/10.1007/s10742-009-0047-1.
     Pyethnicity augments the Census surname list with distributions calculated from
@@ -279,10 +341,18 @@ def bisg(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFra
     >>> pyethnicity.bisg(last_name="li", zcta=27106, geo_type="zcta")
     >>> pyethnicity.bisg(last_name=["li", "luo"], zcta=[27106, 11106], geo_type="zcta")
     """
-    return _bisg_internal(last_name, geography, geo_type, is_6cat=False)
+    return _bisg_internal(
+        last_name, zcta, tract, block_group, drop_intermediate, is_6cat=False
+    )
 
 
-def bisg6(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFrame:
+def bisg6(
+    last_name: Name,
+    zcta: Optional[Geography] = None,
+    tract: Optional[Geography] = None,
+    block_group: Optional[Geography] = None,
+    drop_intermediate: bool = True,
+) -> pl.DataFrame:
     r"""Implements Bayesian Improved Surname Geocoding (BISG), developed by
     Elliot et. al (2009) https://link.springer.com/article/10.1007/s10742-009-0047-1.
 
@@ -323,14 +393,18 @@ def bisg6(last_name: Name, geography: Geography, geo_type: GeoType) -> pd.DataFr
     >>> pyethnicity.bisg6(last_name="li", zcta=27106, geo_type="zcta")
     >>> pyethnicity.bisg6(last_name=["li", "luo"], zcta=[27106, 11106], geo_type="zcta")
     """
-    return _bisg_internal(last_name, geography, geo_type, is_6cat=True)
+    return _bisg_internal(
+        last_name, zcta, tract, block_group, drop_intermediate, is_6cat=True
+    )
 
 
 def _bifsg_internal(
     first_name: Name,
     last_name: Name,
-    geography: Geography,
-    geo_type: GeoType,
+    zcta: Optional[Geography],
+    tract: Optional[Geography],
+    block_group: Optional[Geography],
+    drop_intermediate: bool,
     is_6cat: bool,
 ) -> pd.DataFrame:
     if is_6cat:
@@ -343,17 +417,29 @@ def _bifsg_internal(
     prob_first_name_given_race_path = f"{prefix}prob_first_name_given_race"
     prob_race_given_last_name_path = f"{prefix}prob_race_given_last_name"
 
-    _assert_equal_lengths(first_name, last_name, geography)
+    name_mapper = {
+        "first_name": _set_name(first_name, "first_name"),
+        "last_name": _set_name(last_name, "last_name"),
+        "zcta": _set_name(zcta, "zcta"),
+        "tract": _set_name(tract, "tract"),
+        "block_group": _set_name(block_group, "block_group"),
+    }
+
+    data = {"zcta": zcta, "tract": tract, "block_group": block_group}
+    data = {k: v for k, v in data.items() if v is not None}
+
+    if not data:
+        raise ValueError("At least one geography must be specified.")
+
+    valid_geo_types = list(data.keys())
+
+    data["first_name_raw"] = first_name
+    data["last_name_raw"] = last_name
 
     raw = (
-        pl.LazyFrame(
-            {
-                "first_name_raw": first_name,
-                "last_name_raw": last_name,
-                geo_type: geography,
-            }
-        )
-        .drop_nulls()
+        pl.LazyFrame(data)
+        .drop_nulls(subset=["last_name_raw"])
+        .filter(~pl.all_horizontal(pl.col(valid_geo_types).is_null()))
         .unique()
         .with_row_count("index")
         .pipe(_split_name, "last_name_raw")
@@ -371,10 +457,6 @@ def _bifsg_internal(
 
     clean_last_name_cols = ["last_name_clean", "last_name_clean_1", "last_name_clean_2"]
     last_name_cleaned = raw.select(clean_last_name_cols)
-
-    prob_geo_given_race = (
-        _resolve_geography(raw[geo_type], geo_type).select(races).collect()
-    )
 
     prob_race_given_last_name = (
         _waterfall_join(
@@ -395,27 +477,52 @@ def _bifsg_internal(
         how="left",
     ).select(races)
 
-    bifsg_numer = (
-        prob_first_name_given_race * prob_race_given_last_name * prob_geo_given_race
-    )
-    bifsg_denom = bifsg_numer.sum(axis=1)
-    bifsg_probs = bifsg_numer / bifsg_denom
+    probs = []
+    for geo_type in valid_geo_types:
+        prob_geo_given_race = (
+            _resolve_geography(raw[geo_type], geo_type).select(races).collect()
+        )
+
+        bifsg_numer = (
+            prob_first_name_given_race * prob_race_given_last_name * prob_geo_given_race
+        )
+        bifsg_denom = bifsg_numer.sum_horizontal()
+        bifsg_probs = bifsg_numer / bifsg_denom
+
+        probs.append(
+            bifsg_probs.select(pl.col(races).name.map(lambda c: f"{geo_type}_{c}"))
+        )
+
+    df: pl.DataFrame = pl.concat(probs, how="horizontal")
+
+    for race in races:
+        cols = _sort_geo_cols(cs.expand_selector(df, cs.ends_with(race)))
+        df = df.with_columns(_waterfall_fill(cols).alias(race))
+
+    if drop_intermediate:
+        df = df.drop(cs.contains(valid_geo_types))
 
     # final bookeeping
-    first_name_col = _set_name(first_name, "first_name")
-    last_name_col = _set_name(last_name, "last_name")
-    geo_col = _set_name(geography, geo_type)
+    df.insert_column(0, raw["first_name_raw"]).rename(name_mapper["first_name"])
+    df.insert_column(1, raw["last_name_raw"].rename(name_mapper["last_name"]))
 
-    df: pd.DataFrame = bifsg_probs.to_pandas()
-    df.insert(0, first_name_col, raw["first_name_raw"])
-    df.insert(1, last_name_col, raw["last_name_raw"])
-    df.insert(2, geo_col, raw[geo_type])
+    for idx, geo_type in enumerate(valid_geo_types, start=2):
+        df.insert_column(idx, raw[geo_type].rename(name_mapper[geo_type]))
+
+        prob_geo_given_race = (
+            _resolve_geography(raw[geo_type], geo_type).select(races).collect()
+        )
 
     return df
 
 
 def bifsg(
-    first_name: Name, last_name: Name, geography: Geography, geo_type: GeoType
+    first_name: Name,
+    last_name: Name,
+    zcta: Optional[Geography] = None,
+    tract: Optional[Geography] = None,
+    block_group: Optional[Geography] = None,
+    drop_intermediate: bool = True,
 ) -> pd.DataFrame:
     r"""Implements Bayesian Improved Firstname Surname Geocoding (BIFSG), developed by
     Voicu (2018) https://www.tandfonline.com/doi/full/10.1080/2330443X.2018.1427012.
@@ -470,11 +577,25 @@ def bifsg(
     >>>     geo_type="zcta"
     >>> )
     """
-    return _bifsg_internal(first_name, last_name, geography, geo_type, is_6cat=False)
+    return _bifsg_internal(
+        first_name,
+        last_name,
+        zcta,
+        tract,
+        block_group,
+        drop_intermediate,
+        is_6cat=False,
+    )
 
 
 def bifsg6(
-    first_name: Name, last_name: Name, geography: Geography, geo_type: GeoType
+    first_name: Name,
+    last_name: Name,
+    /,
+    zcta: Optional[Geography] = None,
+    tract: Optional[Geography] = None,
+    block_group: Optional[Geography] = None,
+    drop_intermediate: bool = True,
 ) -> pd.DataFrame:
     r"""Implements Bayesian Improved Firstname Surname Geocoding (BIFSG), developed by
     Voicu (2018) https://www.tandfonline.com/doi/full/10.1080/2330443X.2018.1427012.
@@ -528,7 +649,15 @@ def bifsg6(
     >>>     geo_type="zcta"
     >>> )
     """
-    return _bifsg_internal(first_name, last_name, geography, geo_type, is_6cat=True)
+    return _bifsg_internal(
+        first_name,
+        last_name,
+        zcta,
+        tract,
+        block_group,
+        drop_intermediate,
+        is_6cat=True,
+    )
 
 
 def _calc_correx(female: int, male: int) -> tuple[float, float]:
