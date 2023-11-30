@@ -19,6 +19,7 @@ from .utils.utils import (
     _download,
     _is_null,
     _remove_single_chars,
+    _set_name,
     _std_norm,
 )
 
@@ -150,7 +151,7 @@ def predict_race_fl(
     last_name: Name,
     chunksize: int = CHUNKSIZE,
     _model: onnxruntime.InferenceSession = None,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Predict race from first and last name.
 
     Parameters
@@ -206,11 +207,17 @@ def predict_race_fl(
         for idx, p in enumerate(row):
             preds[RACE_MAPPER[idx]].append(p)
 
-    df = pd.DataFrame()
-    for r, v in preds.items():
-        df[r] = v
-    df.insert(0, "first_name", first_name)
-    df.insert(1, "last_name", last_name)
+    first_name_col = _set_name(first_name, "first_name")
+    last_name_col = _set_name(last_name, "last_name")
+
+    preds[first_name_col] = first_name
+    preds[last_name_col] = last_name
+
+    df = pl.DataFrame(preds).select(
+        first_name_col,
+        last_name_col,
+        pl.col("*").exclude(first_name_col, last_name_col),
+    )
 
     return df
 
@@ -218,10 +225,11 @@ def predict_race_fl(
 def predict_race_flg(
     first_name: Name,
     last_name: Name,
-    geography: Geography,
-    geo_type: GeoType,
+    zcta: Optional[Geography] = None,
+    tract: Optional[Geography] = None,
+    block_group: Optional[Geography] = None,
     chunksize: int = CHUNKSIZE,
-    _model: onnxruntime.InferenceSession = None,
+    _model: Optional[onnxruntime.InferenceSession] = None,
 ) -> pd.DataFrame:
     r"""Predict race from first name, last name, and geography. The output from
     pyethnicity.predict_race_fl is combined with geography using Naive Bayes:
@@ -271,19 +279,22 @@ def predict_race_flg(
     >>>     geography=[11106, 27106], geo_type="zcta"
     >>> )
     """
-    fl_preds = predict_race_fl(first_name, last_name, chunksize, _model)
+    fl_preds = predict_race_fl(
+        first_name=first_name, last_name=last_name, chunksize=chunksize, _model=_model
+    )
 
-    return _bng(pl.from_pandas(fl_preds), geography, geo_type)
+    return _bng(fl_preds, zcta=zcta, tract=tract, block_group=block_group)
 
 
 def predict_race(
     first_name: Name,
     last_name: Name,
-    geography: Geography,
-    geo_type: GeoType,
+    zcta: Optional[Geography] = None,
+    tract: Optional[Geography] = None,
+    block_group: Optional[Geography] = None,
     chunksize: int = CHUNKSIZE,
     _model: onnxruntime.InferenceSession = None,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Predict race from first name, last name, and geography. The output from
     pyethnicity.predict_race_flg is ensembled with pyethnicty.bisg and pyethnicty.bifsg.
 
@@ -327,11 +338,38 @@ def predict_race(
     >>>     geography=[11106, 27106], geo_type="zcta"
     >>> )
     """
+    name_mapper = {
+        "first_name": _set_name(first_name, "first_name"),
+        "last_name": _set_name(last_name, "last_name"),
+        "zcta": _set_name(zcta, "zcta"),
+        "tract": _set_name(tract, "tract"),
+        "block_group": _set_name(block_group, "block_group"),
+    }
+
     flz = predict_race_flg(
-        first_name, last_name, geography, geo_type, chunksize, _model
+        first_name=first_name,
+        last_name=last_name,
+        zcta=zcta,
+        tract=tract,
+        block_group=block_group,
+        chunksize=chunksize,
+        _model=_model,
     )
-    bifsg_ = bifsg(first_name, last_name, geography, geo_type)
-    bisg_ = bisg(last_name, geography, geo_type)
+    bifsg_ = bifsg(
+        first_name=first_name,
+        last_name=last_name,
+        zcta=zcta,
+        tract=tract,
+        block_group=block_group,
+        drop_intermediate=True,
+    )
+    bisg_ = bisg(
+        last_name=last_name,
+        zcta=zcta,
+        tract=tract,
+        block_group=block_group,
+        drop_intermediate=True,
+    )
 
     weights = [1, 1, 1]
 
@@ -351,12 +389,17 @@ def predict_race(
 
             res[race].append(sum(i * w for i, w in zip(valid_inputs, valid_weights)))
 
-    df = pd.DataFrame()
-    for r, v in res.items():
-        df[r] = v
-    df.insert(0, "first_name", first_name)
-    df.insert(1, "last_name", last_name)
-    df.insert(2, geo_type, geography)
+    res = pl.DataFrame(res)
+
+    geographies = {"zcta": zcta, "tract": tract, "block_group": block_group}
+    geographies = {k: v for k, v in geographies.items() if v is not None}
+    geographies = pl.DataFrame(geographies)
+
+    names = pl.DataFrame({"first_name": first_name, "last_name": last_name})
+
+    df: pl.DataFrame = pl.concat([names, geographies, res], how="horizontal").rename(
+        name_mapper
+    )
 
     return df
 
