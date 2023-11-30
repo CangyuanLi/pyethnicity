@@ -407,8 +407,8 @@ def predict_race(
 def predict_sex_f(
     first_name: Name,
     chunksize: int = CHUNKSIZE,
-    _model: onnxruntime.InferenceSession = None,
-) -> pd.DataFrame:
+    _model: Optional[onnxruntime.InferenceSession] = None,
+) -> pl.DataFrame:
     """Predict sex from first name.
 
     Parameters
@@ -447,9 +447,6 @@ def predict_sex_f(
 
     pct_male = [row[0] for row in y_pred]
 
-    df = pd.DataFrame()
-    df["male"] = pct_male
-    df["female"] = 1 - df["male"]
-    df.insert(0, "first_name", first_name)
-
-    return df
+    return pl.DataFrame(
+        {_set_name(first_name, "first_name"): first_name, "male": pct_male}
+    ).with_columns(female=1 - pl.col("male"))
