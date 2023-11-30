@@ -158,6 +158,7 @@ def _normalize_block_group(
         pl.col(col_name).cast(str).str.zfill(12)
     )
 
+
 # TODO: It seems a little wasteful to extract the geography this way now that we have
 # moved to putting everything in a LazyFrame upfront.
 def _resolve_geography(geography: Geography, geo_type: GeoType) -> pl.LazyFrame:
@@ -741,20 +742,6 @@ def predict_sex_ssa(
     >>> pyethnicity.predict_sex_ssa(first_name="john")
     >>> pyethnicity.predict_sex_ssa(first_name=["john", "mary"], min_year=[1880, 1990])
     """
-    if isinstance(first_name, str):
-        first_name = [first_name]
-
-    # broadcast years
-    target_len = len(first_name)
-
-    if isinstance(min_year, int):
-        min_year = [min_year for _ in range(target_len)]
-
-    if isinstance(max_year, int):
-        max_year = [max_year for _ in range(target_len)]
-
-    _assert_equal_lengths(first_name, min_year, max_year)
-
     # create dataframe of inputs to merge on
     inputs = (
         pl.LazyFrame(
