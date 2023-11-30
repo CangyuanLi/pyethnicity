@@ -69,7 +69,7 @@ def _waterfall_join(
     right: pl.LazyFrame,
     left_on: Iterable[str],
     right_on: str,
-    how: str = "left",
+    how: WaterfallJoinType = "left",
 ) -> pl.LazyFrame:
     left = left.with_row_count("index")
     seen: list[int] = []
@@ -158,7 +158,8 @@ def _normalize_block_group(
         pl.col(col_name).cast(str).str.zfill(12)
     )
 
-
+# TODO: It seems a little wasteful to extract the geography this way now that we have
+# moved to putting everything in a LazyFrame upfront.
 def _resolve_geography(geography: Geography, geo_type: GeoType) -> pl.LazyFrame:
     if geo_type == "tract":
         geo = _normalize_tract(geography)
