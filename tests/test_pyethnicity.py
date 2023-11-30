@@ -1,35 +1,76 @@
-# import math
-# from pathlib import Path
+import math
+from pathlib import Path
 
-# import numpy as np
-# import pandas as pd
-# import polars as pl
-# import surgeo
+import numpy as np
+import pandas as pd
+import polars as pl
+import pytest
+import surgeo
 
-# import pyethnicity
+import pyethnicity
+import pyethnicity.utils.utils as pyeth_utils
 
-# BASE_PATH = Path(__file__).resolve().parents[0]
+BASE_PATH = Path(__file__).resolve().parents[0]
 
 # ZCTA = 11106
 # TRACT = 72153750502
 # RACES = ["asian", "black", "hispanic", "white"]
 
-# PPP = (
-#     pl.scan_parquet(BASE_PATH / "ppp_test.parquet")
-#     .select("first_name", "last_name", "zcta")
-#     .with_columns(pl.col("first_name", "last_name").str.to_uppercase())
-#     .collect()
-#     .sample(10_000)
-#     .to_pandas()
-# )
+PPP = (
+    pl.scan_parquet(BASE_PATH / "ppp_test.parquet")
+    .select("first_name", "last_name", "zcta")
+    .with_columns(pl.col("first_name", "last_name").str.to_uppercase())
+    .collect()
+    .sample(10_000)
+    .to_pandas()
+)
 
 
-# def arr_equal(arr1, arr2):
-#     for i, j in zip(arr1, arr2):
-#         if i != j:
-#             return False
+def arr_equal(arr1, arr2):
+    for i, j in zip(arr1, arr2):
+        if i != j:
+            return False
 
-#     return True
+    return True
+
+
+def test_set_name():
+    assert pyeth_utils._set_name(["mercy"], "first_name") == "first_name"
+    assert pyeth_utils._set_name(pl.Series("fname", ["mercy"]), "first_name") == "fname"
+    assert (
+        pyeth_utils._set_name(
+            PPP.rename(columns={"first_name": "blah"})["blah"], "first_name"
+        )
+        == "blah"
+    )
+
+
+def test_remove_single_chars():
+    assert pyeth_utils._remove_single_chars("james a denise") == "james denise"
+    assert pyeth_utils._remove_single_chars("james denise") == "james denise"
+    assert pyeth_utils._remove_single_chars("a james a a c denise d") == "james denise"
+
+
+def test_sort_geo_cols():
+    from pyethnicity._bayesian_models import _sort_geo_cols
+
+    assert _sort_geo_cols(["tract"]) == ["tract"]
+    assert _sort_geo_cols(["tract", "block_group", "zcta"]) == [
+        "block_group",
+        "tract",
+        "zcta",
+    ]
+    assert _sort_geo_cols(["zcta_asian", "block_group_asian"]) == [
+        "block_group_asian",
+        "zcta_asian",
+    ]
+
+
+def test_assert_equal_lengths():
+    assert pyeth_utils._assert_equal_lengths("mercy", "luo", 27106) is None
+
+    with pytest.raises(ValueError):
+        pyeth_utils._assert_equal_lengths("mercy", ["luo", "li"])
 
 
 # def test_bisg6():
