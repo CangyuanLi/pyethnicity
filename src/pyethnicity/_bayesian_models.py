@@ -591,7 +591,6 @@ def bifsg(
 def bifsg6(
     first_name: Name,
     last_name: Name,
-    /,
     zcta: Optional[Geography] = None,
     tract: Optional[Geography] = None,
     block_group: Optional[Geography] = None,
