@@ -523,7 +523,7 @@ def _bifsg_internal(
         df = df.drop(cs.contains(valid_geo_types))
 
     # final bookeeping
-    df.insert_column(0, raw["first_name_raw"]).rename(name_mapper["first_name"])
+    df.insert_column(0, raw["first_name_raw"].rename(name_mapper["first_name"]))
     df.insert_column(1, raw["last_name_raw"].rename(name_mapper["last_name"]))
 
     for idx, geo_type in enumerate(valid_geo_types, start=2):
