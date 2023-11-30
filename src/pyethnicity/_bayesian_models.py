@@ -5,20 +5,12 @@ import typing
 from collections.abc import Iterable
 from typing import Literal, Optional
 
-import pandas as pd
 import polars as pl
 import polars.selectors as cs
 
 from .utils.paths import DIST_PATH
 from .utils.types import Geography, GeoType, Name, Year
-from .utils.utils import (
-    RACES,
-    RACES_6,
-    _assert_equal_lengths,
-    _download,
-    _remove_single_chars,
-    _set_name,
-)
+from .utils.utils import RACES, RACES_6, _download, _remove_single_chars, _set_name
 
 UNWANTED_CHARS = string.digits + string.punctuation + string.whitespace
 
@@ -99,16 +91,16 @@ def _waterfall_fill(exprs: pl.Expr) -> pl.Expr:
 
 
 def _sort_geo_cols(cols: tuple[str]) -> list[str]:
-    new_order = []
+    ranks = []
     for col in cols:
         if "block_group" in col:
-            new_order.append(0)
+            ranks.append(0)
         elif "tract" in col:
-            new_order.append(1)
+            ranks.append(1)
         elif "zcta" in col:
-            new_order.append(2)
+            ranks.append(2)
 
-    return [cols[i] for i in new_order]
+    return [x for _, x in sorted(zip(ranks, cols))]
 
 
 def _remove_chars(expr: pl.Expr) -> pl.Expr:
@@ -186,18 +178,44 @@ def _resolve_geography(geography: Geography, geo_type: GeoType) -> pl.LazyFrame:
 
 
 def _bng(
-    prob_race_given_name: pl.DataFrame, geography: Geography, geo_type: GeoType
-) -> pd.DataFrame:
-    prob_geo_given_race = _resolve_geography(geography, geo_type).collect()
+    prob_race_given_name: pl.DataFrame,
+    zcta: Geography,
+    tract: Geography,
+    block_group: Geography,
+) -> pl.DataFrame:
+    data = {"zcta": zcta, "tract": tract, "block_group": block_group}
+    data = {k: v for k, v in data.items() if v is not None}
 
-    numer = prob_race_given_name.select(RACES) * prob_geo_given_race.select(RACES)
-    denom = numer.sum(axis=1)
-    probs = numer / denom
+    if not data:
+        raise ValueError("At least one geography must be specified.")
+
+    valid_geo_types = list(data.keys())
+
+    prob_list = []
+    for geo_type in valid_geo_types:
+        prob_geo_given_race = (
+            _resolve_geography(data[geo_type], geo_type).select(RACES).collect()
+        )
+
+        numer = prob_race_given_name.select(RACES) * prob_geo_given_race.select(RACES)
+        denom = numer.sum_horizontal()
+        probs = numer / denom
+        prob_list.append(
+            probs.select(pl.col(RACES).name.map(lambda c: f"{geo_type}_{c}"))
+        )
+
+    df: pl.DataFrame = pl.concat(prob_list, how="horizontal")
+
+    for race in RACES:
+        cols = _sort_geo_cols(cs.expand_selector(df, cs.ends_with(race)))
+        df = df.with_columns(_waterfall_fill(cols).alias(race))
+
+    df = df.drop(cs.contains(valid_geo_types))
 
     return pl.concat(
         [prob_race_given_name.select("first_name", "last_name"), probs],
         how="horizontal",
-    ).to_pandas()
+    )
 
 
 def _bisg_internal(
@@ -300,7 +318,7 @@ def bisg(
     tract: Optional[Geography] = None,
     block_group: Optional[Geography] = None,
     drop_intermediate: bool = True,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     r"""Implements Bayesian Improved Surname Geocoding (BISG), developed by
     Elliot et. al (2009) https://link.springer.com/article/10.1007/s10742-009-0047-1.
     Pyethnicity augments the Census surname list with distributions calculated from
@@ -408,7 +426,7 @@ def _bifsg_internal(
     block_group: Optional[Geography],
     drop_intermediate: bool,
     is_6cat: bool,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     if is_6cat:
         races = RACES_6
         prefix = "6cat/"
@@ -525,7 +543,7 @@ def bifsg(
     tract: Optional[Geography] = None,
     block_group: Optional[Geography] = None,
     drop_intermediate: bool = True,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     r"""Implements Bayesian Improved Firstname Surname Geocoding (BIFSG), developed by
     Voicu (2018) https://www.tandfonline.com/doi/full/10.1080/2330443X.2018.1427012.
     Pyethnicity augments the Census surname list and HMDA first name list with
@@ -597,7 +615,7 @@ def bifsg6(
     tract: Optional[Geography] = None,
     block_group: Optional[Geography] = None,
     drop_intermediate: bool = True,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     r"""Implements Bayesian Improved Firstname Surname Geocoding (BIFSG), developed by
     Voicu (2018) https://www.tandfonline.com/doi/full/10.1080/2330443X.2018.1427012.
     Note that when using 6 categories, only the Voicu data is used. BIFSG is implemented
