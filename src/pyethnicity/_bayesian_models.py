@@ -709,7 +709,7 @@ def predict_sex_ssa(
     min_year: Year = 1880,
     max_year: Year = 2022,
     correct_skew: bool = True,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Predicts sex from first name and a year range using Social Security
     Administration data. It simply calculates the proportion of people with a certain
     name in a certain year range that are male and female.
@@ -797,4 +797,4 @@ def predict_sex_ssa(
         .select("first_name", "min_year", "max_year", "pct_female", "pct_male")
     )
 
-    return res.collect().to_pandas()
+    return res.collect()
