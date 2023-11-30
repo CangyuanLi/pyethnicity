@@ -6,13 +6,12 @@ from typing import Literal, Optional
 import cutils
 import numpy as np
 import onnxruntime
-import pandas as pd
 import polars as pl
 import tqdm
 
 from ._bayesian_models import _bng, bifsg, bisg
 from .utils.paths import MODEL_PATH
-from .utils.types import Geography, GeoType, Model, Name
+from .utils.types import Geography, Model, Name
 from .utils.utils import (
     RACES,
     _assert_equal_lengths,
@@ -230,7 +229,7 @@ def predict_race_flg(
     block_group: Optional[Geography] = None,
     chunksize: int = CHUNKSIZE,
     _model: Optional[onnxruntime.InferenceSession] = None,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     r"""Predict race from first name, last name, and geography. The output from
     pyethnicity.predict_race_fl is combined with geography using Naive Bayes:
 
