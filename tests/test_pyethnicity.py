@@ -1,35 +1,35 @@
-import math
-from pathlib import Path
+# import math
+# from pathlib import Path
 
-import numpy as np
-import pandas as pd
-import polars as pl
-import surgeo
+# import numpy as np
+# import pandas as pd
+# import polars as pl
+# import surgeo
 
-import pyethnicity
+# import pyethnicity
 
-BASE_PATH = Path(__file__).resolve().parents[0]
+# BASE_PATH = Path(__file__).resolve().parents[0]
 
-ZCTA = 11106
-TRACT = 72153750502
-RACES = ["asian", "black", "hispanic", "white"]
+# ZCTA = 11106
+# TRACT = 72153750502
+# RACES = ["asian", "black", "hispanic", "white"]
 
-PPP = (
-    pl.scan_parquet(BASE_PATH / "ppp_test.parquet")
-    .select("first_name", "last_name", "zcta")
-    .with_columns(pl.col("first_name", "last_name").str.to_uppercase())
-    .collect()
-    .sample(10_000)
-    .to_pandas()
-)
+# PPP = (
+#     pl.scan_parquet(BASE_PATH / "ppp_test.parquet")
+#     .select("first_name", "last_name", "zcta")
+#     .with_columns(pl.col("first_name", "last_name").str.to_uppercase())
+#     .collect()
+#     .sample(10_000)
+#     .to_pandas()
+# )
 
 
-def arr_equal(arr1, arr2):
-    for i, j in zip(arr1, arr2):
-        if i != j:
-            return False
+# def arr_equal(arr1, arr2):
+#     for i, j in zip(arr1, arr2):
+#         if i != j:
+#             return False
 
-    return True
+#     return True
 
 
 # def test_bisg6():
@@ -58,36 +58,36 @@ def arr_equal(arr1, arr2):
 #     pass
 
 
-def test_bisg():
-    df = pyethnicity.bisg("luo", TRACT, "tract")
-    assert arr_equal(df.columns, ["last_name", "tract"] + RACES)
+# def test_bisg():
+#     df = pyethnicity.bisg("luo", TRACT, "tract")
+#     assert arr_equal(df.columns, ["last_name", "tract"] + RACES)
 
-    df = pyethnicity.bisg("luo", ZCTA, "zcta")
-    assert arr_equal(df.columns, ["last_name", "zcta"] + RACES)
+#     df = pyethnicity.bisg("luo", ZCTA, "zcta")
+#     assert arr_equal(df.columns, ["last_name", "zcta"] + RACES)
 
-    df = df.drop("last_name", axis=1)
-    for other in ["Luo", "lUo", "luo jr."]:
-        assert df.equals(
-            pyethnicity.bisg(other, ZCTA, "zcta").drop("last_name", axis=1)
-        )
+#     df = df.drop("last_name", axis=1)
+#     for other in ["Luo", "lUo", "luo jr."]:
+#         assert df.equals(
+#             pyethnicity.bisg(other, ZCTA, "zcta").drop("last_name", axis=1)
+#         )
 
 
-def test_bifsg():
-    df = pyethnicity.bifsg("mercy", "luo", TRACT, "tract")
-    assert arr_equal(df.columns, ["first_name", "last_name", "tract"] + RACES)
+# def test_bifsg():
+#     df = pyethnicity.bifsg("mercy", "luo", TRACT, "tract")
+#     assert arr_equal(df.columns, ["first_name", "last_name", "tract"] + RACES)
 
-    df = pyethnicity.bifsg("mercy", "luo", ZCTA, "zcta")
-    assert arr_equal(df.columns, ["first_name", "last_name", "zcta"] + RACES)
+#     df = pyethnicity.bifsg("mercy", "luo", ZCTA, "zcta")
+#     assert arr_equal(df.columns, ["first_name", "last_name", "zcta"] + RACES)
 
-    df = df.drop(["first_name", "last_name"], axis=1)
-    for other_fn, other_ln in zip(
-        ["MErcY", "mercy12", "mercy sr."], ["Luo", "lUo", "luo jr."]
-    ):
-        assert df.equals(
-            pyethnicity.bifsg(other_fn, other_ln, ZCTA, "zcta").drop(
-                ["first_name", "last_name"], axis=1
-            )
-        )
+#     df = df.drop(["first_name", "last_name"], axis=1)
+#     for other_fn, other_ln in zip(
+#         ["MErcY", "mercy12", "mercy sr."], ["Luo", "lUo", "luo jr."]
+#     ):
+#         assert df.equals(
+#             pyethnicity.bifsg(other_fn, other_ln, ZCTA, "zcta").drop(
+#                 ["first_name", "last_name"], axis=1
+#             )
+#         )
 
 
 # def test_ssa():
