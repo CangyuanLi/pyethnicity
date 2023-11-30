@@ -164,7 +164,7 @@ def predict_race_fl(
 
     Returns
     -------
-    pd.DataFrame
+    pl.DataFrame
         A DataFrame of first_name, last_name, and `P(r|f,s)` for Asian, Black,
         Hispanic, and White.
 
@@ -255,7 +255,7 @@ def predict_race_flg(
 
     Returns
     -------
-    pd.DataFrame
+    pl.DataFrame
         A DataFrame of first_name, last_name, geography, and `P(r|n,g)` for Asian,
         Black, Hispanic, and White.
 
@@ -312,7 +312,7 @@ def predict_race(
 
     Returns
     -------
-    pd.DataFrame
+    pl.DataFrame
         A DataFrame of first_name, last_name, geography, and `P(r|n,g)` for Asian,
         Black, Hispanic, and White. If the geography cannot be found, the probability
         is `NaN`.
@@ -419,7 +419,7 @@ def predict_sex_f(
 
     Returns
     -------
-    pd.DataFrame
+    pl.DataFrame
         A DataFrame of first_name, pct_male, and pct_female.
 
     Examples

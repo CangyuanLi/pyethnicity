@@ -329,23 +329,29 @@ def bisg(
         P(r|s,g) = \frac{P(r|s) \times P(g|r)}{\sum_{r=1}^4 P(r|s) \times P(g|r)}
 
     where `r` is race, `s` is surname, and `g` is geography. The sum is across all
-    races, i.e. Asian, Black, Hispanic, and White.
+    races, i.e. Asian, Black, Hispanic, and White. You may specify
+    multiple geographies. If so, the resulting predictions are waterfalled together,
+    where the priority is block group -> tract -> zcta.
 
     Parameters
     ----------
     last_name : Name
         A string or array-like of strings
-    geography : Geography
-        A scalar or array-like of geographies
-    geo_type : GeoType
-        One of `zcta` or `tract`
+    zcta : Geography, optional
+        A scalar or array-like of Census ZCTAs, by default None
+    tract : Geography, optional
+        A scalar or array-like of Census Tracts, by default None
+    block_group : Geography, optional
+        A scalar or array-like of Census Block Groups, by default None
+    drop_intermediate : bool
+        Whether to drop intermediate calculations, by default True
 
     Returns
     -------
     pd.DataFrame
-        A DataFrame of last_name, geography, and `P(r | s, g)` for Asian, Black,
+        A DataFrame of last name, geography, and `P(r | s, g)` for Asian, Black,
         Hispanic, and White. If either the last name or geography cannot be found,
-        the probability is `NaN`.
+        the probability is null.
 
     Notes
     -----
@@ -381,23 +387,29 @@ def bisg6(
         P(r|s,g) = \frac{P(r|s) \times P(g|r)}{\sum_{r=1}^6 P(r|s) \times P(g|r)}
 
     where `r` is race, `s` is surname, and `g` is geography. The sum is across all
-    races, i.e. Asian, Black, Hispanic, Multiple, Native, and White.
+    races, i.e. Asian, Black, Hispanic, Multiple, Native, and White. You may specify
+    multiple geographies. If so, the resulting predictions are waterfalled together,
+    where the priority is block group -> tract -> zcta.
 
     Parameters
     ----------
     last_name : Name
         A string or array-like of strings
-    geography : Geography
-        A scalar or array-like of geographies
-    geo_type : GeoType
-        One of `zcta` or `tract`
+    zcta : Geography, optional
+        A scalar or array-like of Census ZCTAs, by default None
+    tract : Geography, optional
+        A scalar or array-like of Census Tracts, by default None
+    block_group : Geography, optional
+        A scalar or array-like of Census Block Groups, by default None
+    drop_intermediate : bool
+        Whether to drop intermediate calculations, by default True
 
     Returns
     -------
     pd.DataFrame
-        A DataFrame of last_name, geography, and `P(r | s, g)` for Asian, Black,
-        Hispanic, Multiple, Native and White. If either the last name or geography
-        cannot be found, the probability is `NaN`.
+        A DataFrame of last name, geographies, and `P(r | s, g)` for Asian, Black,
+        Hispanic, Multiple, Native and White. If either the last name or all geographies
+        cannot be found, the probability is null.
 
     Notes
     -----
