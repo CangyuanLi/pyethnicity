@@ -742,13 +742,23 @@ def predict_sex_ssa(
     >>> pyethnicity.predict_sex_ssa(first_name="john")
     >>> pyethnicity.predict_sex_ssa(first_name=["john", "mary"], min_year=[1880, 1990])
     """
+    name_mapper = {
+        "first_name": _set_name(first_name, "first_name"),
+        "min_year": _set_name(min_year, "min_year"),
+        "max_year": _set_name(max_year, "max_year"),
+    }
+
+    if name_mapper["min_year"] == name_mapper["max_year"]:
+        name_mapper["min_year"] = "min_year"
+        name_mapper["max_year"] = "max_year"
+
     # create dataframe of inputs to merge on
     inputs = (
         pl.LazyFrame(
             {"first_name": first_name, "min_year": min_year, "max_year": max_year}
         )
         .with_columns(first_name_clean=pl.col("first_name").str.to_lowercase())
-        .unique(["first_name", "min_year", "max_year"])
+        .unique()
     )
 
     ssa = RESOURCE_LOADER.load("ssa")
@@ -782,6 +792,7 @@ def predict_sex_ssa(
             pct_male=pl.col("count_male") / pl.col("total"),
         )
         .select("first_name", "min_year", "max_year", "pct_female", "pct_male")
+        .rename(name_mapper)
     )
 
     return res.collect()
