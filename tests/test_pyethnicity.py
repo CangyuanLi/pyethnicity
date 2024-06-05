@@ -72,6 +72,13 @@ def test_assert_equal_lengths():
     with pytest.raises(ValueError):
         pyeth_utils._assert_equal_lengths("mercy", ["luo", "li"])
 
+    assert (
+        pyeth_utils._assert_equal_lengths(
+            ["luo", "li"], pd.Series(["luo", "li"], pl.Series("x", ["luo", "li"]))
+        )
+        is None
+    )
+
 
 # def test_bisg6():
 #     key = ["last_name", "zcta"]
