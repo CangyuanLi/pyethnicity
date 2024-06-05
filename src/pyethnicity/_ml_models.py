@@ -213,14 +213,10 @@ def predict_race_fl(
     preds[first_name_col] = first_name
     preds[last_name_col] = last_name
 
-    df = (
-        pl.DataFrame(preds)
-        .select(
-            first_name_col,
-            last_name_col,
-            cs.all().exclude(first_name_col, last_name_col),
-        )
-        .unique([first_name_col, last_name_col])  # TODO: Push this unique up
+    df = pl.DataFrame(preds).select(
+        first_name_col,
+        last_name_col,
+        cs.all().exclude(first_name_col, last_name_col),
     )
 
     return df
@@ -386,7 +382,7 @@ def predict_race(
             bifsg_,
             on=[name_mapper["first_name"], name_mapper["last_name"], *geo_cols],
             how="left",
-            validate="1:1",
+            validate="m:1",
             suffix="_bifsg",
             coalesce=True,
         )
