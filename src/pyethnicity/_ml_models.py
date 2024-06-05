@@ -7,6 +7,7 @@ import cutils
 import numpy as np
 import onnxruntime
 import polars as pl
+import polars.selectors as cs
 import tqdm
 
 from ._bayesian_models import _bng, bifsg, bisg
@@ -16,10 +17,8 @@ from .utils.utils import (
     RACES,
     _assert_equal_lengths,
     _download,
-    _is_null,
     _remove_single_chars,
     _set_name,
-    _std_norm,
 )
 
 VALID_NAME_CHARS = f"{string.ascii_lowercase} '-"
@@ -76,7 +75,7 @@ def _normalize_name(name: Name) -> list[str]:
         .str.replace_all(r"\s?IV\s*?$", "")
         .str.to_lowercase()
         .str.replace_all(f"[^{VALID_NAME_CHARS}]", "")
-        .apply(_remove_single_chars)
+        .map_elements(_remove_single_chars, return_dtype=str)
     ).to_list()
 
 
@@ -215,7 +214,7 @@ def predict_race_fl(
     df = pl.DataFrame(preds).select(
         first_name_col,
         last_name_col,
-        pl.col("*").exclude(first_name_col, last_name_col),
+        cs.all().exclude(first_name_col, last_name_col),
     )
 
     return df
@@ -291,6 +290,7 @@ def predict_race(
     zcta: Optional[Geography] = None,
     tract: Optional[Geography] = None,
     block_group: Optional[Geography] = None,
+    weights: list[float] = [1, 1, 1],
     chunksize: int = CHUNKSIZE,
     _model: onnxruntime.InferenceSession = None,
 ) -> pl.DataFrame:
@@ -345,7 +345,10 @@ def predict_race(
         "block_group": _set_name(block_group, "block_group"),
     }
 
-    flz = predict_race_flg(
+    data = {"zcta": zcta, "tract": tract, "block_group": block_group}
+    geo_cols = [name_mapper[k] for k, v in data.items() if v is not None]
+
+    flg = predict_race_flg(
         first_name=first_name,
         last_name=last_name,
         zcta=zcta,
@@ -370,37 +373,55 @@ def predict_race(
         drop_intermediate=True,
     )
 
-    weights = [1, 1, 1]
+    flg_weight, bifsg_weight, bisg_weight = weights
 
-    res: dict[str, list] = {r: [] for r in RACES}
-    for race in RACES:
-        for row in zip(
-            flz[race].to_list(), bifsg_[race].to_list(), bisg_[race].to_list()
-        ):
-            valid_inputs = []
-            valid_weights = []
-            for r, w in zip(row, weights):
-                if not _is_null(r):
-                    valid_inputs.append(r)
-                    valid_weights.append(w)
-
-            valid_weights = _std_norm(valid_weights)
-
-            res[race].append(sum(i * w for i, w in zip(valid_inputs, valid_weights)))
-
-    res = pl.DataFrame(res)
-
-    geographies = {"zcta": zcta, "tract": tract, "block_group": block_group}
-    geographies = {k: v for k, v in geographies.items() if v is not None}
-    geographies = pl.DataFrame(geographies)
-
-    names = pl.DataFrame({"first_name": first_name, "last_name": last_name})
-
-    df: pl.DataFrame = pl.concat([names, geographies, res], how="horizontal").rename(
-        name_mapper
+    return (
+        flg.join(
+            bifsg_,
+            on=[name_mapper["first_name"], name_mapper["last_name"], *geo_cols],
+            how="left",
+            validate="1:1",
+            suffix="_bifsg",
+            coalesce=True,
+        )
+        .join(
+            bisg_,
+            on=[name_mapper["last_name"], *geo_cols],
+            how="left",
+            validate="m:1",
+            suffix="_bisg",
+            coalesce=True,
+        )
+        .with_columns(
+            pl.lit(flg_weight).alias("flg_weight"),
+            pl.lit(bifsg_weight).alias("bifsg_weight"),
+            pl.lit(bisg_weight).alias("bisg_weight"),
+        )
+        .with_columns(
+            pl.col("flg_weight") * pl.col("asian").is_not_null(),
+            pl.col("bifsg_weight") * pl.col("asian_bifsg").is_not_null(),
+            pl.col("bisg_weight") * pl.col("asian_bisg").is_not_null(),
+        )
+        .with_columns(
+            pl.sum_horizontal("flg_weight", "bifsg_weight", "bisg_weight").alias(
+                "total_weight"
+            )
+        )
+        .with_columns(
+            pl.col("flg_weight", "bifsg_weight", "bisg_weight").truediv(
+                pl.col("total_weight")
+            )
+        )
+        .with_columns(
+            pl.sum_horizontal(
+                pl.col(r) * pl.col("flg_weight"),
+                pl.col(f"{r}_bifsg") * pl.col("bifsg_weight"),
+                pl.col(f"{r}_bisg") * pl.col("bisg_weight"),
+            ).alias(r)
+            for r in RACES
+        )
+        .select(name_mapper["first_name"], name_mapper["last_name"], *geo_cols, *RACES)
     )
-
-    return df
 
 
 def predict_sex_f(
