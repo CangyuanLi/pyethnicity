@@ -183,6 +183,11 @@ def _bng(
     tract: Geography,
     block_group: Geography,
 ) -> pl.DataFrame:
+    name_mapper = {
+        "zcta": _set_name(zcta, "zcta"),
+        "tract": _set_name(tract, "tract"),
+        "block_group": _set_name(block_group, "block_group"),
+    }
     data = {"zcta": zcta, "tract": tract, "block_group": block_group}
     data = {k: v for k, v in data.items() if v is not None}
 
@@ -213,7 +218,11 @@ def _bng(
     df = df.drop(cs.contains(valid_geo_types))
 
     return pl.concat(
-        [prob_race_given_name.select("first_name", "last_name"), probs],
+        [
+            prob_race_given_name.drop(RACES),
+            pl.DataFrame(data).rename(name_mapper),
+            probs,
+        ],
         how="horizontal",
     )
 
