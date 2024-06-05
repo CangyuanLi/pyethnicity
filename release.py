@@ -18,6 +18,9 @@ def main():
         ["gh", "release", "create", f"v{version}", "--generate-notes"], check=True
     )
 
+    print("uploading to pypi")
+    subprocess.run(["pyproject", "upload"])
+
 
 if __name__ == "__main__":
     main()
