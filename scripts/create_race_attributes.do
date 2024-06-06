@@ -24,13 +24,13 @@ foreach file in `geo_files'{
     
 * Step 1: From the SF1, retain population counts for the contiguous U.S., Alaska, and Hawaii in order to ensure consistency with the population
 * covered by the census surname list.
-	if "`file'" != "zcta" {
+	/* if "`file'" != "zcta" {
 		drop if state_fips == "72"
 	}
     
     if "`file'" == "zcta" {
 		drop if inlist(substr(zcta,1,3),"006","007","008","009")
-	}
+	} */
 		
 	rename nh_white NH_White_alone
 	rename nh_white_other NH_White_Other
