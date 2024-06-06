@@ -1,9 +1,13 @@
 import functools
 import math
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import SupportsFloat, SupportsIndex, Union
 
+import polars as pl
 import requests
+from polars._utils.parse_expr_input import parse_as_list_of_expressions
+from polars._utils.wrap import wrap_expr
+from polars.type_aliases import IntoExpr
 
 from .paths import DAT_PATH
 from .types import ArrayLike
@@ -63,3 +67,13 @@ def _download(path: str):
 
     with open(DAT_PATH / path, "wb") as f:
         f.write(r.content)
+
+
+def _sum_horizontal(*exprs: Union[IntoExpr, Iterable[IntoExpr]]) -> pl.Expr:
+    exprs = [wrap_expr(e) for e in parse_as_list_of_expressions(*exprs)]
+
+    return (
+        pl.when(pl.all_horizontal(e.is_null() for e in exprs))
+        .then(None)
+        .otherwise(pl.sum_horizontal(exprs))
+    )

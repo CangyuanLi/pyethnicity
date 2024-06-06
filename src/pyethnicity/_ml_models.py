@@ -19,6 +19,7 @@ from .utils.utils import (
     _download,
     _remove_single_chars,
     _set_name,
+    _sum_horizontal,
 )
 
 VALID_NAME_CHARS = f"{string.ascii_lowercase} '-"
@@ -405,7 +406,7 @@ def predict_race(
             pl.col("bisg_weight") * pl.col("asian_bisg").is_not_null(),
         )
         .with_columns(
-            pl.sum_horizontal("flg_weight", "bifsg_weight", "bisg_weight").alias(
+            _sum_horizontal("flg_weight", "bifsg_weight", "bisg_weight").alias(
                 "total_weight"
             )
         )
@@ -415,7 +416,7 @@ def predict_race(
             )
         )
         .with_columns(
-            pl.sum_horizontal(
+            _sum_horizontal(
                 pl.col(r) * pl.col("flg_weight"),
                 pl.col(f"{r}_bifsg") * pl.col("bifsg_weight"),
                 pl.col(f"{r}_bisg") * pl.col("bisg_weight"),
