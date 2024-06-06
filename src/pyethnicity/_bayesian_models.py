@@ -206,7 +206,9 @@ def _bng(
         denom = numer.sum_horizontal()
         probs = numer / denom
         prob_list.append(
-            probs.select(pl.col(RACES).name.map(lambda c: f"{geo_type}_{c}"))
+            probs.select(pl.col(RACES).name.map(lambda c: f"{geo_type}_{c}")).fill_nan(
+                None
+            )
         )
 
     df: pl.DataFrame = pl.concat(prob_list, how="horizontal")
@@ -300,7 +302,9 @@ def _bisg_internal(
         bisg_probs = bisg_numer / bisg_denom
 
         probs.append(
-            bisg_probs.select(pl.col(races).name.map(lambda c: f"{geo_type}_{c}"))
+            bisg_probs.select(
+                pl.col(races).name.map(lambda c: f"{geo_type}_{c}")
+            ).fill_nan(None)
         )
 
     df: pl.DataFrame = pl.concat(probs, how="horizontal")
@@ -531,7 +535,9 @@ def _bifsg_internal(
         bifsg_probs = bifsg_numer / bifsg_denom
 
         probs.append(
-            bifsg_probs.select(pl.col(races).name.map(lambda c: f"{geo_type}_{c}"))
+            bifsg_probs.select(
+                pl.col(races).name.map(lambda c: f"{geo_type}_{c}")
+            ).fill_nan(None)
         )
 
     df: pl.DataFrame = pl.concat(probs, how="horizontal")
