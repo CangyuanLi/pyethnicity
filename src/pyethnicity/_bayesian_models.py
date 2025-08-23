@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import string
 import typing
 from collections.abc import Iterable
@@ -10,7 +11,15 @@ import polars.selectors as cs
 
 from .utils.paths import DIST_PATH
 from .utils.types import Geography, GeoType, Name, Year
-from .utils.utils import RACES, RACES_6, _download, _remove_single_chars, _set_name
+from .utils.utils import (
+    RACES,
+    RACES_6,
+    IntoExpr,
+    _as_expr,
+    _download,
+    _remove_single_chars,
+    _set_name,
+)
 
 UNWANTED_CHARS = string.digits + string.punctuation + string.whitespace
 
@@ -83,11 +92,13 @@ def _waterfall_join(
     return pl.concat(outputs, how="diagonal").sort("index").drop("index")
 
 
-def _waterfall_fill(exprs: pl.Expr) -> pl.Expr:
+def _waterfall_fill(*exprs: IntoExpr) -> pl.Expr:
+    exprs = [_as_expr(expr) for expr in exprs]
+
     def func(acc: pl.Expr, x: pl.Expr):
         return pl.when(acc.is_null()).then(x).otherwise(acc)
 
-    return pl.reduce(function=func, exprs=exprs)
+    return functools.reduce(func, exprs)
 
 
 def _sort_geo_cols(cols: tuple[str]) -> list[str]:
@@ -118,7 +129,7 @@ def _normalize_name(expr: pl.Expr) -> pl.Expr:
         .str.replace_all(r"\s?III\s*?$", "")
         .str.replace_all(r"\s?IV\s*?$", "")
         .pipe(_remove_chars)
-        .map_elements(_remove_single_chars, return_dtype=str)
+        .pipe(_remove_single_chars)
     )
 
 
@@ -215,7 +226,7 @@ def _bng(
 
     for race in RACES:
         cols = _sort_geo_cols(cs.expand_selector(df, cs.ends_with(race)))
-        df = df.with_columns(_waterfall_fill(cols).alias(race))
+        df = df.with_columns(_waterfall_fill(*cols).alias(race))
 
     df = df.drop(cs.contains(valid_geo_types))
 
@@ -266,7 +277,7 @@ def _bisg_internal(
         .drop_nulls(subset=["last_name_raw"])
         .filter(~pl.all_horizontal(pl.col(valid_geo_types).is_null()))
         .unique()
-        .with_row_count("index")
+        .with_row_index("index")
         .pipe(_split_name, "last_name_raw")
         .with_columns(
             pl.col("last_name_raw", "last_name_raw_1", "last_name_raw_2")
@@ -311,7 +322,7 @@ def _bisg_internal(
 
     for race in races:
         cols = _sort_geo_cols(cs.expand_selector(df, cs.ends_with(race)))
-        df = df.with_columns(_waterfall_fill(cols).alias(race))
+        df = df.with_columns(_waterfall_fill(*cols).alias(race))
 
     if drop_intermediate:
         df = df.drop(cs.contains(valid_geo_types))
@@ -486,7 +497,7 @@ def _bifsg_internal(
         .drop_nulls(subset=["last_name_raw"])
         .filter(~pl.all_horizontal(pl.col(valid_geo_types).is_null()))
         .unique()
-        .with_row_count("index")
+        .with_row_index("index")
         .pipe(_split_name, "last_name_raw")
         .with_columns(
             pl.col(
@@ -544,7 +555,7 @@ def _bifsg_internal(
 
     for race in races:
         cols = _sort_geo_cols(cs.expand_selector(df, cs.ends_with(race)))
-        df = df.with_columns(_waterfall_fill(cols).alias(race))
+        df = df.with_columns(_waterfall_fill(*cols).alias(race))
 
     if drop_intermediate:
         df = df.drop(cs.contains(valid_geo_types))

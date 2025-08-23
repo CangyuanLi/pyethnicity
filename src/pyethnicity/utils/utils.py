@@ -1,19 +1,26 @@
-import functools
 import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from typing import SupportsFloat, SupportsIndex, Union
 
 import polars as pl
 import requests
-from polars._utils.parse_expr_input import parse_as_list_of_expressions
-from polars._utils.wrap import wrap_expr
-from polars.type_aliases import IntoExpr
 
 from .paths import DAT_PATH
 from .types import ArrayLike
 
+IntoExpr = Union[str, pl.Expr]
+
 RACES = ("asian", "black", "hispanic", "white")
 RACES_6 = ("asian", "black", "hispanic", "multiple", "native", "white")
+
+
+def _as_expr(e: IntoExpr) -> pl.Expr:
+    if isinstance(e, str):
+        return pl.col(e)
+    elif isinstance(e, pl.Expr):
+        return e
+    else:
+        raise ValueError("Invalid input.")
 
 
 def _assert_equal_lengths(*inputs: Union[object, ArrayLike]):
@@ -31,9 +38,23 @@ def _assert_equal_lengths(*inputs: Union[object, ArrayLike]):
         raise ValueError("All inputs need to be of equal length.")
 
 
-@functools.lru_cache()
-def _remove_single_chars(name: str) -> str:
-    return " ".join(part for part in name.split(" ") if len(part) > 1)
+def _remove_single_chars(expr: IntoExpr) -> pl.Expr:
+    return (
+        _as_expr(expr)
+        .str.split(" ")
+        .list.eval(pl.element().filter(pl.element().str.len_bytes() > 1))
+        .list.join(" ")
+    )
+
+
+def _remove_generational_suffixes(expr: IntoExpr) -> pl.Expr:
+    return (
+        _as_expr(expr)
+        .str.strip_suffix(" jr")
+        .str.strip_suffix(" sr")
+        .str.strip_suffix(" iii")
+        .str.strip_suffix(" iv")
+    )
 
 
 def _std_norm(values: Sequence[float]) -> list[float]:
@@ -69,8 +90,8 @@ def _download(path: str):
         f.write(r.content)
 
 
-def _sum_horizontal(*exprs: Union[IntoExpr, Iterable[IntoExpr]]) -> pl.Expr:
-    exprs = [wrap_expr(e) for e in parse_as_list_of_expressions(*exprs)]
+def _sum_horizontal(*exprs: IntoExpr) -> pl.Expr:
+    exprs = [_as_expr(e) for e in exprs]
 
     return (
         pl.when(pl.all_horizontal(e.is_null() for e in exprs))
