@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import concurrent.futures
+import multiprocessing
 import string
 from typing import Literal, Optional
 
@@ -9,14 +11,16 @@ import onnxruntime
 import polars as pl
 import polars.selectors as cs
 import tqdm
+from polars.type_aliases import IntoExpr
 
 from ._bayesian_models import _bng, bifsg, bisg
 from .utils.paths import MODEL_PATH
 from .utils.types import Geography, Model, Name
 from .utils.utils import (
     RACES,
-    _assert_equal_lengths,
+    _as_expr,
     _download,
+    _remove_generational_suffixes,
     _remove_single_chars,
     _set_name,
     _sum_horizontal,
@@ -53,7 +57,7 @@ class ModelLoader:
 MODEL_LOADER = ModelLoader()
 
 
-def _encode_name(name: str, mapper: dict = CHAR_MAPPER, max_len: int = 15):
+def _encode_name(name: str, mapper: dict = CHAR_MAPPER, max_len: int = 15) -> list[int]:
     out_of_vocab = mapper["U"] if mapper == CHAR_MAPPER else ""
     ids = [0] * max_len
     for i, c in enumerate(name):
@@ -63,21 +67,20 @@ def _encode_name(name: str, mapper: dict = CHAR_MAPPER, max_len: int = 15):
     return ids
 
 
-def _normalize_name(name: Name) -> list[str]:
-    if isinstance(name, str):
-        name = [name]
+def _encode_full_name(name_tuple: tuple[str, str]) -> list[int]:
+    first_name, last_name = name_tuple
 
+    return _encode_name(first_name) + _encode_name(last_name)
+
+
+def _normalize_name(expr: IntoExpr) -> pl.Expr:
     return (
-        pl.Series(values=name)
-        .str.to_uppercase()
-        .str.replace_all(r"\s?J\.*?R\.*\s*?$", "")
-        .str.replace_all(r"\s?S\.*?R\.*\s*?$", "")
-        .str.replace_all(r"\s?III\s*?$", "")
-        .str.replace_all(r"\s?IV\s*?$", "")
+        _as_expr(expr)
         .str.to_lowercase()
+        .pipe(_remove_generational_suffixes)
         .str.replace_all(f"[^{VALID_NAME_CHARS}]", "")
-        .map_elements(_remove_single_chars, return_dtype=str)
-    ).to_list()
+        .pipe(_remove_single_chars)
+    )
 
 
 # this is taken from keras code, this is just to avoid having to import the entirety
@@ -181,15 +184,32 @@ def predict_race_fl(
             first_name=["cangyuan", "mark"], last_name=["li", "luo"]
         )
     """
-    _assert_equal_lengths(first_name, last_name)
+    df = (
+        pl.LazyFrame({"first_name": first_name, "last_name": last_name})
+        .unique()
+        .with_columns(
+            pl.col("first_name", "last_name")
+            .pipe(_normalize_name)
+            .name.map(lambda c: f"{c}_cleaned")
+        )
+        .collect()
+    )
 
-    first_name_cleaned = _normalize_name(first_name)
-    last_name_cleaned = _normalize_name(last_name)
+    first_name_cleaned = df["first_name_cleaned"]
+    last_name_cleaned = df["last_name_cleaned"]
+    X = []
+    for tup in zip(first_name_cleaned, last_name_cleaned):
+        X.append(_encode_full_name(tup))
 
-    X = [
-        _encode_name(fn) + _encode_name(ln)
-        for fn, ln in zip(first_name_cleaned, last_name_cleaned)
-    ]
+    # with concurrent.futures.ProcessPoolExecutor(
+    #     mp_context=multiprocessing.get_context("fork")
+    # ) as pool:
+    #     X = list(
+    #         pool.map(_encode_full_name, zip(first_name_cleaned, last_name_cleaned))
+    #     )
+
+    # print(X)
+
     X = _pad_sequences(X, maxlen=30).astype(np.float32)
 
     if _model is None:
@@ -211,16 +231,17 @@ def predict_race_fl(
     first_name_col = _set_name(first_name, "first_name")
     last_name_col = _set_name(last_name, "last_name")
 
-    preds[first_name_col] = first_name
-    preds[last_name_col] = last_name
-
-    df = pl.DataFrame(preds).select(
-        first_name_col,
-        last_name_col,
-        cs.all().exclude(first_name_col, last_name_col),
+    res = pl.concat(
+        [
+            df.select("first_name", "last_name").rename(
+                {"first_name": first_name_col, "last_name": last_name_col}
+            ),
+            pl.DataFrame(preds),
+        ],
+        how="horizontal",
     )
 
-    return df
+    return res
 
 
 def predict_race_flg(
@@ -283,6 +304,30 @@ def predict_race_flg(
     fl_preds = predict_race_fl(
         first_name=first_name, last_name=last_name, chunksize=chunksize, _model=_model
     )
+
+    first_name_col = _set_name(first_name, "first_name")
+    last_name_col = _set_name(last_name, "last_name")
+    zcta_col = _set_name(zcta, "zcta")
+    tract_col = _set_name(tract, "tract")
+    block_group_col = _set_name(block_group, "block_group")
+
+    valid = pl.DataFrame(
+        {
+            first_name_col: first_name,
+            last_name_col: last_name,
+            zcta_col: zcta,
+            tract_col: tract,
+            block_group_col: block_group,
+        }
+    ).join(
+        fl_preds.select(first_name_col, last_name_col),
+        on=[first_name_col, last_name_col],
+        how="inner",
+    )
+
+    zcta = valid[zcta_col] if zcta is not None else None
+    tract = valid[tract_col] if tract is not None else None
+    block_group = valid[block_group_col] if block_group is not None else None
 
     return _bng(fl_preds, zcta=zcta, tract=tract, block_group=block_group)
 
